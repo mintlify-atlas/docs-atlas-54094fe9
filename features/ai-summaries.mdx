@@ -1,0 +1,375 @@
+---
+title: 'AI-Powered Summaries'
+description: 'CrewAI-generated comprehensive summaries with citations'
+icon: 'file-lines'
+---
+
+## Overview
+
+DecipherIt generates comprehensive, well-structured summaries using CrewAI's multi-agent framework. Research and Content Writer agents work together to transform raw content into engaging, informative blog-style summaries with proper citations.
+
+<Info>
+Summaries are generated using a two-stage process: deep research analysis followed by engaging content creation, ensuring both accuracy and readability.
+</Info>
+
+## Summary Generation Process
+
+<Steps>
+  <Step title="Research Analysis">
+    The Researcher agent conducts a deep analysis of all available content.
+    
+    **Analysis Activities:**
+    - Reviews ALL source content thoroughly
+    - Identifies key themes and patterns
+    - Cross-references information across sources
+    - Highlights supporting evidence
+    - Notes conflicting viewpoints
+    - Organizes findings into logical themes
+    
+    **Implementation:** `backend/config/topic_research/tasks.py:89-127`
+  </Step>
+
+  <Step title="Content Creation">
+    The Content Writer agent transforms research analysis into an engaging blog post.
+    
+    **Content Requirements:**
+    - Engaging, authoritative voice
+    - Proper markdown formatting
+    - Citations for all claims
+    - Clear structure with headings
+    - Professional yet accessible tone
+    - Value-focused content
+    
+    **Implementation:** `backend/config/topic_research/tasks.py:128-169`
+  </Step>
+
+  <Step title="Quality Assurance">
+    CrewAI's built-in validation ensures:
+    
+    - Pydantic output models for structured data
+    - Automatic retry on validation failures (max 5 retries)
+    - Citation format compliance
+    - Complete reference lists
+  </Step>
+</Steps>
+
+## Summary Structure
+
+Generated summaries follow a consistent, professional structure:
+
+<Tabs>
+  <Tab title="Components">
+    ### Title
+    Clear, descriptive title capturing the main topic
+    
+    ### Introduction
+    - Hooks reader with compelling opening
+    - Outlines key points to be covered
+    - Sets context for the research
+    
+    ### Main Sections
+    - Multiple thematic sections based on research findings
+    - Organized logically by topic relationships
+    - Each section explores different aspects
+    - Includes subheadings for clarity
+    
+    ### Conclusion
+    - Synthesizes key insights
+    - Highlights main takeaways
+    - Provides closure to the research
+    
+    ### References
+    - Complete list of all sources cited
+    - Proper citation format
+    - Linked for easy access
+  </Tab>
+  
+  <Tab title="Formatting">
+    Summaries use rich markdown formatting:
+    
+    **Text Emphasis:**
+    - **Bold** for key terms and emphasis
+    - *Italics* for subtle emphasis
+    - `Code blocks` for technical terms
+    
+    **Structure:**
+    - Headings (##, ###) for organization
+    - Bullet points for lists
+    - Numbered lists for sequences
+    - Block quotes for citations
+    
+    **Citations:**
+    ```markdown
+    > "Quote text from source" - [Source Title](url)
+    ```
+    
+    **Links:**
+    - Inline links to sources
+    - Reference-style links in bibliography
+  </Tab>
+</Tabs>
+
+## CrewAI Agent Configuration
+
+### Research Analyst Agent
+
+```python
+researcher = Agent(
+    role="Senior Research Analyst",
+    goal="Synthesize research findings into comprehensive analysis",
+    backstory="""Expert research analyst who excels at distilling 
+                 complex information into clear, actionable summaries 
+                 while maintaining accuracy.""",
+    verbose=True,
+    llm=llm,
+)
+```
+
+**Task Configuration:**
+```python
+research_task = Task(
+    description="""Synthesize research findings into a comprehensive 
+                   and detailed final document with:
+                   - Deep analysis of all sources
+                   - Identification of key themes and patterns
+                   - Cross-referencing of insights
+                   - Support for all findings""",
+    expected_output="""A markdown document with comprehensive research 
+                       analysis, organized into logical sections based on 
+                       findings, with proper citations and references""",
+    agent=researcher,
+    max_retries=5,
+)
+```
+
+**Source:** `backend/agents/topic_research_agent.py:121-143`
+
+### Content Writer Agent
+
+```python
+content_writer = Agent(
+    role="Expert Content Writer",
+    goal="Transform research into engaging, informative blog posts",
+    backstory="""Experienced content writer who creates compelling, 
+                 accessible content from complex research while 
+                 maintaining accuracy and proper attribution.""",
+    verbose=True,
+    llm=llm,
+)
+```
+
+**Task Configuration:**
+```python
+content_task = Task(
+    description="""Create an engaging and informative blog post that:
+                   - Uses engaging, authoritative voice
+                   - Supports all claims with citations
+                   - Includes relevant quotes with attribution
+                   - Maintains professional but accessible tone
+                   - Provides value to readers""",
+    expected_output="""Well-structured blog post in markdown format 
+                       with proper citations and clear attribution.""",
+    agent=content_writer,
+    context=[research_task],  # Uses research task output as context
+    max_retries=5,
+    output_pydantic=BlogPostTaskResult
+)
+```
+
+**Source:** `backend/agents/topic_research_agent.py:129-152`
+
+## Output Format
+
+Summaries are returned as structured JSON:
+
+```json
+{
+  "blog_post": "# Title\n\n## Introduction\n\n...",
+  "title": "Research Topic Title"
+}
+```
+
+**Pydantic Model:**
+```python
+class BlogPostTaskResult(BaseModel):
+    blog_post: str  # Markdown-formatted content
+    title: str      # Post title
+```
+
+**Source:** `backend/models/topic_research_models.py`
+
+## Accessing Your Summary
+
+Once research processing completes:
+
+<Steps>
+  <Step title="Navigate to Notebook">
+    Click on your notebook from the dashboard to view details.
+  </Step>
+
+  <Step title="View Summary Tab">
+    The **Deciphered Summary** tab is selected by default, displaying your AI-generated summary.
+  </Step>
+
+  <Step title="Interact with Content">
+    - Scroll through the formatted markdown content
+    - Click citation links to view sources
+    - Copy sections for use elsewhere
+    - Read the comprehensive research analysis
+  </Step>
+</Steps>
+
+**UI Implementation:** `client/components/notebook/notebook-polling.tsx:776-785`
+
+## Citation Format
+
+All summaries include proper citations:
+
+<Tabs>
+  <Tab title="URL Sources">
+    Citations from web sources:
+    ```markdown
+    > "Direct quote from the article" - [Article Title](https://example.com)
+    ```
+    
+    **Example:**
+    > "Climate change is accelerating faster than predicted" - [Nature Climate Report](https://nature.com/climate-2024)
+  </Tab>
+  
+  <Tab title="Document Sources">
+    Citations from uploaded files:
+    ```markdown
+    According to the research paper (research_paper.pdf), the findings show...
+    ```
+    
+    **Example:**
+    According to the analysis (Q4_Report.pdf), revenue increased by 23% year-over-year.
+  </Tab>
+  
+  <Tab title="Text Sources">
+    Citations from manual text:
+    ```markdown
+    > "Quote from provided text" - Provided Text
+    ```
+    
+    **Example:**
+    > "The meeting concluded with three action items" - Provided Text
+  </Tab>
+</Tabs>
+
+## Summary Quality Features
+
+<CardGroup cols={2}>
+  <Card title="Comprehensive Coverage" icon="check">
+    All sources are thoroughly analyzed and incorporated, ensuring no important information is missed.
+  </Card>
+  
+  <Card title="Logical Organization" icon="diagram-project">
+    Content is organized into coherent sections based on natural theme groupings from the research.
+  </Card>
+  
+  <Card title="Proper Attribution" icon="quote-left">
+    Every claim is backed by citations, making it easy to verify information and explore further.
+  </Card>
+  
+  <Card title="Engaging Writing" icon="pen">
+    Professional yet accessible tone makes complex research easy to understand and engaging to read.
+  </Card>
+</CardGroup>
+
+## Customization Through Prompts
+
+The summary generation adapts to your content:
+
+<AccordionGroup>
+  <Accordion title="Topic-Based Research">
+    For topic research, summaries:
+    - Focus on the specific research question
+    - Include current date/time context
+    - Emphasize recent developments
+    - Compare multiple perspectives from web sources
+  </Accordion>
+  
+  <Accordion title="Source-Based Research">
+    For multi-source research, summaries:
+    - Integrate insights from different source types
+    - Cross-reference uploaded documents with URLs
+    - Incorporate manual text content contextually
+    - Provide unified analysis of diverse materials
+  </Accordion>
+</AccordionGroup>
+
+## Technical Details
+
+### LLM Configuration
+
+Summaries use GPT-4o for optimal quality:
+
+```python
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.7,
+    api_key=os.environ["OPENAI_API_KEY"]
+)
+```
+
+**Source:** `backend/config/llm.py`
+
+### Crew Orchestration
+
+```python
+research_content_crew = Crew(
+    agents=[researcher, content_writer],
+    tasks=[research_task, faq_task, content_task],
+    verbose=True,
+    process=Process.sequential,  # Tasks run in order
+    output_log_file=f"logs/research_content_crew_{current_time}.log",
+    max_rpm=20  # Rate limit: 20 requests per minute
+)
+
+research_content_crew_result = await research_content_crew.kickoff_async(inputs={
+    "topic": topic,
+    "scraped_data": scraped_data,
+    "current_time": current_time,
+})
+```
+
+**Source:** `backend/agents/topic_research_agent.py:164-246`
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Review Citations" icon="link">
+    Click through citation links to verify sources and explore topics in more depth.
+  </Card>
+  
+  <Card title="Use as Starting Point" icon="rocket">
+    Summaries provide comprehensive overviews - use the Chat feature for specific questions.
+  </Card>
+  
+  <Card title="Export Content" icon="download">
+    Copy the markdown content for use in your own documents, presentations, or reports.
+  </Card>
+  
+  <Card title="Verify Information" icon="shield-check">
+    While summaries are generated from credible sources, always verify critical information.
+  </Card>
+</CardGroup>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="FAQ Generation" icon="circle-question" href="/features/faq-generation">
+    Auto-generated Q&A from summary content
+  </Card>
+  
+  <Card title="Interactive Q&A" icon="messages" href="/features/interactive-qa">
+    Ask specific questions about the research
+  </Card>
+  
+  <Card title="Mindmaps" icon="diagram-project" href="/features/mindmaps">
+    Visual representation of summary themes
+  </Card>
+</CardGroup>

@@ -1,0 +1,378 @@
+---
+title: "Features Overview"
+description: "Comprehensive overview of DecipherIt's AI-powered research capabilities and features"
+---
+
+## All Features at a Glance
+
+DecipherIt combines multiple AI-powered features to transform how you conduct research. Each feature is powered by specialized **CrewAI agents** and cutting-edge AI services.
+
+## Core Research Features
+
+<CardGroup cols={2}>
+  <Card title="Deep Research" icon="microscope" href="/features/deep-research">
+    **Topic-based research powered by Bright Data**
+    
+    Enter any topic and let AI agents strategically plan data collection, discover diverse sources through global search, and synthesize comprehensive insights.
+    
+    - Web Scraping Planner creates research strategy
+    - Link Collector uses `search_engine` to find sources
+    - Web Scraper extracts content with `scrape_as_markdown`
+    - Research Analyst synthesizes findings
+    - Content Writer creates structured summaries
+  </Card>
+  
+  <Card title="Multi-Source Research" icon="layer-group" href="/features/multi-source-research">
+    **Combine documents, URLs, text, and topics**
+    
+    Seamlessly integrate multiple input types into unified research spaces with AI-powered processing.
+    
+    - **Documents:** PDF, DOCX, PPTX, XLSX via MarkItDown
+    - **URLs:** Web scraping via Bright Data MCP
+    - **Manual Text:** Direct text input processing
+    - **Topics:** Automated source discovery
+    - All processed and integrated together
+  </Card>
+  
+  <Card title="AI-Powered Summaries" icon="brain" href="/features/ai-summaries">
+    **Comprehensive research analysis**
+    
+    CrewAI agents work together to create well-structured, engaging summaries from all your sources.
+    
+    - Research Analyst synthesizes information
+    - Content Writer crafts engaging narratives
+    - Highlights key insights and trends
+    - Connects information across sources
+    - Powered by Google Gemini via OpenRouter
+  </Card>
+  
+  <Card title="Interactive Q&A" icon="comments" href="/features/interactive-qa">
+    **Chat with your research using vector search**
+    
+    Natural language question answering powered by semantic search through Qdrant vector database.
+    
+    - OpenAI embeddings for semantic understanding
+    - Qdrant vector database for fast retrieval
+    - Context-aware responses from Decipher agent
+    - Chat history for follow-up questions
+    - Source citations in every answer
+  </Card>
+</CardGroup>
+
+## Content Generation Features
+
+<CardGroup cols={2}>
+  <Card title="Smart FAQ Generation" icon="circle-question" href="/features/faq-generation">
+    **Automatic Q&A creation from research**
+    
+    AI agents analyze your research content to automatically generate relevant, insightful questions with comprehensive answers.
+    
+    - Analyzes content patterns automatically
+    - Generates relevant questions
+    - Creates comprehensive answers
+    - Perfect for documentation
+    - Ideal for study guides
+  </Card>
+  
+  <Card title="Audio Overviews" icon="headphones" href="/features/audio-overviews">
+    **Podcast-style audio summaries**
+    
+    Transform research into engaging 4-5 minute podcast conversations with multiple AI voices.
+    
+    - Podcast Script Generator creates dialogue
+    - Conversation between Michael (host) & Sarah (expert)
+    - LemonFox TTS for high-quality voices
+    - 800-1000 word natural conversations
+    - Stored in Cloudflare R2
+  </Card>
+  
+  <Card title="Visual Mindmaps" icon="diagram-project" href="/features/mindmaps">
+    **Interactive hierarchical visualizations**
+    
+    AI-generated mindmaps with up to 5 levels of depth to visualize research structure and relationships.
+    
+    - Content Analyzer identifies themes
+    - Mindmap Creator builds hierarchy
+    - Adaptive depth (2-5 levels)
+    - Built with react-mindmap-visualiser
+    - Interactive exploration
+  </Card>
+</CardGroup>
+
+## Advanced Capabilities
+
+### Global Web Access
+
+Powered by **Bright Data's MCP Server** - the official Model Context Protocol server for unrestricted web access:
+
+<CardGroup cols={2}>
+  <Card title="Search Engine" icon="magnifying-glass">
+    Discover relevant sources globally without geo-restrictions using Bright Data's search capabilities
+  </Card>
+  <Card title="Web Scraping" icon="download">
+    Extract clean, structured content from any website with anti-bot detection and residential proxies
+  </Card>
+  <Card title="Geo-Unrestricted" icon="earth-americas">
+    Access content from anywhere in the world regardless of location constraints
+  </Card>
+  <Card title="Bot Detection Bypass" icon="shield-halved">
+    Advanced techniques to avoid getting blocked during data collection
+  </Card>
+</CardGroup>
+
+### Vector-Powered Intelligence
+
+Semantic search and intelligent retrieval powered by modern vector database technology:
+
+<Tabs>
+  <Tab title="Qdrant Database">
+    High-performance vector database storing research embeddings:
+    - Fast similarity search
+    - Semantic understanding
+    - Contextual retrieval
+    - Scalable storage
+  </Tab>
+  <Tab title="OpenAI Embeddings">
+    State-of-the-art text embeddings:
+    - Semantic meaning capture
+    - Cross-lingual understanding
+    - Context preservation
+    - High-dimensional vectors
+  </Tab>
+  <Tab title="Intelligent Chunking">
+    Optimal content segmentation:
+    - Context-aware splitting
+    - Overlap for continuity
+    - Metadata preservation
+    - Source tracking
+  </Tab>
+</Tabs>
+
+### Multi-Agent Architecture
+
+DecipherIt employs **specialized CrewAI crews** for different tasks:
+
+<AccordionGroup>
+  <Accordion title="Planning Crew" icon="chess">
+    **Agent:** Web Scraping Planner
+    
+    Creates strategic research plans and optimal data collection approaches for topics.
+    
+    **Output:** Search queries and collection strategy
+  </Accordion>
+  
+  <Accordion title="Discovery Crew" icon="compass">
+    **Agent:** Link Collector
+    
+    Uses Bright Data's `search_engine` tool to find relevant sources globally based on research topics and search queries.
+    
+    **Output:** List of relevant URLs with titles
+  </Accordion>
+  
+  <Accordion title="Scraping Crew" icon="download">
+    **Agent:** Web Scraper
+    
+    Uses Bright Data's `scrape_as_markdown` tool to extract and convert web content to clean, structured markdown format.
+    
+    **Output:** Clean markdown content from URLs
+  </Accordion>
+  
+  <Accordion title="Analysis Crew" icon="magnifying-glass-chart">
+    **Agent:** Research Analyst
+    
+    Synthesizes information from multiple sources, identifies patterns, and extracts key insights across all research material.
+    
+    **Output:** Structured research analysis
+  </Accordion>
+  
+  <Accordion title="Content Creation Crew" icon="pen-nib">
+    **Agent:** Content Writer
+    
+    Creates engaging, well-structured research summaries that highlight key insights, trends, and connections.
+    
+    **Output:** Comprehensive blog-style summaries
+  </Accordion>
+  
+  <Accordion title="FAQ Generation Crew" icon="circle-question">
+    **Agent:** FAQ Generator
+    
+    Analyzes content patterns to automatically generate relevant questions with comprehensive answers.
+    
+    **Output:** List of Q&A pairs
+  </Accordion>
+  
+  <Accordion title="Visualization Crew" icon="diagram-project">
+    **Agents:** Content Analyzer + Mindmap Creator
+    
+    Analyzes research structure to identify themes and creates hierarchical mindmap visualizations with adaptive depth.
+    
+    **Output:** Interactive mindmap structure
+  </Accordion>
+  
+  <Accordion title="Audio Production Crew" icon="podcast">
+    **Agents:** Research Analyst + Conversation Planner + Script Writer
+    
+    Creates podcast-style audio overviews through multi-stage pipeline: analysis, outline, script generation, and TTS conversion.
+    
+    **Output:** Audio file with conversational summary
+  </Accordion>
+  
+  <Accordion title="Chat Crew" icon="comments">
+    **Agent:** Decipher
+    
+    Answers user questions using vector search retrieval and chat history context, providing accurate responses with source citations.
+    
+    **Output:** Contextual answers with sources
+  </Accordion>
+</AccordionGroup>
+
+## Processing Pipeline
+
+### Immediate Processing
+
+These features run automatically when you create a notebook:
+
+<Steps>
+  <Step title="Source Collection">
+    All sources (documents, URLs, text, topics) are collected and prepared for processing
+  </Step>
+  <Step title="Content Extraction">
+    - Documents converted to markdown via MarkItDown
+    - URLs scraped via Bright Data MCP Server
+    - Topics researched via Planning + Discovery + Scraping crews
+  </Step>
+  <Step title="Vector Embeddings">
+    Content chunked and converted to embeddings using OpenAI, stored in Qdrant for semantic search
+  </Step>
+  <Step title="Research Analysis">
+    Research Analyst synthesizes information from all sources
+  </Step>
+  <Step title="Summary Generation">
+    Content Writer creates comprehensive, engaging summary
+  </Step>
+  <Step title="FAQ Creation">
+    FAQ Generator analyzes content and creates Q&A pairs
+  </Step>
+</Steps>
+
+### On-Demand Generation
+
+These features generate when you request them:
+
+<CardGroup cols={3}>
+  <Card title="Audio" icon="headphones">
+    Click audio button to trigger Script Writer crew and LemonFox TTS conversion
+  </Card>
+  <Card title="Mindmap" icon="diagram-project">
+    Request mindmap to trigger Content Analyzer and Mindmap Creator crews
+  </Card>
+  <Card title="Q&A" icon="messages">
+    Ask questions anytime - Decipher agent retrieves context via Qdrant search
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+### Frontend
+
+<CardGroup cols={2}>
+  <Card title="Next.js 15" icon="react">
+    React framework with App Router for modern web applications
+  </Card>
+  <Card title="React 19" icon="atom">
+    Latest React with concurrent features and improved performance
+  </Card>
+  <Card title="TypeScript 5" icon="code">
+    Type-safe development for reliable applications
+  </Card>
+  <Card title="Shadcn/ui" icon="palette">
+    Beautiful, accessible component library with Radix UI primitives
+  </Card>
+  <Card title="Better Auth" icon="lock">
+    Modern authentication with email/password and GitHub OAuth
+  </Card>
+  <Card title="Prisma" icon="database">
+    Type-safe database ORM for PostgreSQL
+  </Card>
+</CardGroup>
+
+### Backend
+
+<CardGroup cols={2}>
+  <Card title="Python 3.12" icon="python">
+    Latest Python with performance improvements
+  </Card>
+  <Card title="FastAPI" icon="bolt">
+    High-performance async API framework
+  </Card>
+  <Card title="CrewAI" icon="users">
+    Multi-agent AI framework for complex tasks
+  </Card>
+  <Card title="SQLAlchemy" icon="database">
+    Python SQL toolkit and ORM
+  </Card>
+</CardGroup>
+
+### AI & ML Services
+
+<CardGroup cols={2}>
+  <Card title="Bright Data MCP" icon="server">
+    Official Model Context Protocol server for web access
+  </Card>
+  <Card title="Google Gemini" icon="sparkles">
+    LLM via OpenRouter for content generation
+  </Card>
+  <Card title="OpenAI Embeddings" icon="brain">
+    Text embeddings for semantic search
+  </Card>
+  <Card title="LemonFox TTS" icon="microphone">
+    High-quality text-to-speech synthesis
+  </Card>
+  <Card title="Qdrant" icon="database">
+    Vector database for semantic search
+  </Card>
+  <Card title="MarkItDown" icon="file-code">
+    Document conversion to markdown
+  </Card>
+</CardGroup>
+
+### Infrastructure
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database">
+    Robust relational database for application data
+  </Card>
+  <Card title="Cloudflare R2" icon="cloud">
+    Object storage for files and audio
+  </Card>
+  <Card title="Docker" icon="docker">
+    Containerization for deployment
+  </Card>
+</CardGroup>
+
+## Learn More
+
+<CardGroup cols={2}>
+  <Card title="Deep Research" icon="microscope" href="/features/deep-research">
+    Learn how topic-based research works with Bright Data and CrewAI
+  </Card>
+  <Card title="Interactive Q&A" icon="comments" href="/features/interactive-qa">
+    Understand vector search and conversational AI
+  </Card>
+  <Card title="Audio Overviews" icon="headphones" href="/features/audio-overviews">
+    Explore podcast generation pipeline
+  </Card>
+  <Card title="Mindmaps" icon="diagram-project" href="/features/mindmaps">
+    Discover hierarchical visualization
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Deep dive into technical architecture
+  </Card>
+  <Card title="Self-Hosting" icon="server" href="/self-hosting/installation">
+    Deploy your own instance
+  </Card>
+</CardGroup>
+
+<Info>
+  All features are powered by **open-source technologies** and can be self-hosted. Check out the [GitHub repository](https://github.com/mtwn105/decipher-research-agent) to explore the code!
+</Info>

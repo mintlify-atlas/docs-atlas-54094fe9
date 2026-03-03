@@ -1,0 +1,229 @@
+---
+title: 'Chat API'
+description: 'Interactive Q&A endpoint for conversational queries about notebook research'
+---
+
+## Overview
+
+The Chat API enables conversational interactions with your research notebooks. Send messages and receive AI-generated responses based on the notebook's research content using vector search and retrieval-augmented generation (RAG).
+
+## Send Chat Message
+
+<Card title="POST /chat/message" icon="message">
+  Send a chat message and receive an AI-generated response
+</Card>
+
+### Request
+
+<ParamField body="messages" type="array" required>
+  Array of chat messages in the conversation
+  
+  <Expandable title="ChatMessage object">
+    <ParamField body="role" type="string" required>
+      The role of the message sender. Typically `user` or `assistant`
+    </ParamField>
+    
+    <ParamField body="content" type="string" required>
+      The content of the message
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="notebook_id" type="string" required>
+  The ID of the notebook to query against
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Optional additional metadata for the message
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Status of the request: `success`
+</ResponseField>
+
+<ResponseField name="response" type="string">
+  The AI-generated response to your message
+</ResponseField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.decipherit.com/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notebook_id": "nb_123456",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What are the key findings about quantum computing?"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.decipherit.com/chat/message",
+    json={
+        "notebook_id": "nb_123456",
+        "messages": [
+            {
+                "role": "user",
+                "content": "What are the key findings about quantum computing?"
+            }
+        ]
+    }
+)
+
+data = response.json()
+print(f"Response: {data['response']}")
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.decipherit.com/chat/message', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    notebook_id: 'nb_123456',
+    messages: [
+      {
+        role: 'user',
+        content: 'What are the key findings about quantum computing?'
+      }
+    ]
+  })
+});
+
+const data = await response.json();
+console.log(`Response: ${data.response}`);
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "status": "success",
+  "response": "Based on the research in your notebook, the key findings about quantum computing include: 1) Quantum computers leverage quantum superposition and entanglement to process information exponentially faster than classical computers for specific problems. 2) Current applications focus on cryptography, drug discovery, and optimization problems. 3) Major challenges include maintaining qubit coherence and error correction."
+}
+```
+
+### Multi-turn Conversation
+
+The API supports multi-turn conversations by passing the full message history:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.decipherit.com/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notebook_id": "nb_123456",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What are the key findings?"
+      },
+      {
+        "role": "assistant",
+        "content": "The key findings include..."
+      },
+      {
+        "role": "user",
+        "content": "Can you elaborate on the first point?"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+messages = [
+    {"role": "user", "content": "What are the key findings?"},
+    {"role": "assistant", "content": "The key findings include..."},
+    {"role": "user", "content": "Can you elaborate on the first point?"}
+]
+
+response = requests.post(
+    "https://api.decipherit.com/chat/message",
+    json={
+        "notebook_id": "nb_123456",
+        "messages": messages
+    }
+)
+
+data = response.json()
+print(data['response'])
+```
+
+```javascript JavaScript
+const messages = [
+  { role: 'user', content: 'What are the key findings?' },
+  { role: 'assistant', content: 'The key findings include...' },
+  { role: 'user', content: 'Can you elaborate on the first point?' }
+];
+
+const response = await fetch('https://api.decipherit.com/chat/message', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    notebook_id: 'nb_123456',
+    messages: messages
+  })
+});
+
+const data = await response.json();
+console.log(data.response);
+```
+</CodeGroup>
+
+### Example with Metadata
+
+```json
+{
+  "notebook_id": "nb_123456",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Summarize the main points"
+    }
+  ],
+  "metadata": {
+    "user_id": "user_789",
+    "session_id": "session_xyz"
+  }
+}
+```
+
+### Error Responses
+
+<ResponseField name="500 Internal Server Error" type="object">
+  <Expandable title="Error details">
+    Returned when the chat agent encounters an error processing the message
+    
+    ```json
+    {
+      "detail": "Failed to process chat message"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+## How It Works
+
+1. **Vector Search**: Your message is used to search the notebook's research content using semantic similarity
+2. **Context Retrieval**: Relevant research sections are retrieved from the vector database
+3. **AI Generation**: The chat agent generates a response using the retrieved context and conversation history
+4. **Response**: The generated answer is returned, grounded in your notebook's research
+
+## Best Practices
+
+- **Be Specific**: Ask specific questions about the research topic for more focused answers
+- **Maintain Context**: Include previous messages for coherent multi-turn conversations
+- **Notebook Scope**: Questions are answered based only on the specified notebook's research content
+- **Error Handling**: Implement retry logic for 500 errors as they may be transient

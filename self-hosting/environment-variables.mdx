@@ -1,0 +1,523 @@
+---
+title: 'Environment Variables'
+description: 'Complete reference for all DecipherIt environment variables'
+icon: 'code'
+---
+
+## Overview
+
+DecipherIt uses environment variables to configure both the frontend and backend. This page provides a complete reference for all available variables.
+
+<Note>
+  Variables marked with ⚠️ are required. Variables marked with ℹ️ are optional.
+</Note>
+
+## Frontend Environment Variables
+
+These variables are configured in `client/.env.local`.
+
+### Database
+
+<ParamField path="DATABASE_URL" type="string" required>
+  ⚠️ PostgreSQL connection string for Prisma ORM
+
+  **Format**: `postgresql://[user]:[password]@[host]:[port]/[database]`
+
+  **Example**:
+  ```bash
+  DATABASE_URL="postgresql://decipher_user:password@localhost:5432/decipher"
+  ```
+
+  **Docker**:
+  ```bash
+  DATABASE_URL="postgresql://postgres:password@db:5432/decipher"
+  ```
+</ParamField>
+
+### Authentication
+
+<ParamField path="BETTER_AUTH_SECRET" type="string" required>
+  ⚠️ Secret key for signing authentication tokens
+
+  **Requirements**:
+  - Minimum 32 characters
+  - Cryptographically secure random string
+  - Must be kept secret
+
+  **Generate**:
+  ```bash
+  openssl rand -base64 32
+  ```
+
+  **Example**:
+  ```bash
+  BETTER_AUTH_SECRET="a8f5f167f44f4964e6c998dee827110c"
+  ```
+</ParamField>
+
+<ParamField path="BETTER_AUTH_URL" type="string" required>
+  ⚠️ Base URL where your application is hosted
+
+  **Development**:
+  ```bash
+  BETTER_AUTH_URL="http://localhost:3000"
+  ```
+
+  **Production**:
+  ```bash
+  BETTER_AUTH_URL="https://yourdomain.com"
+  ```
+</ParamField>
+
+### Application URLs
+
+<ParamField path="NEXT_PUBLIC_BASE_URL" type="string" required>
+  ⚠️ Public base URL (accessible from client-side code)
+
+  **Development**:
+  ```bash
+  NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+  ```
+
+  **Production**:
+  ```bash
+  NEXT_PUBLIC_BASE_URL="https://yourdomain.com"
+  ```
+
+  <Warning>
+    Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. Never include secrets in these variables.
+  </Warning>
+</ParamField>
+
+<ParamField path="BACKEND_API_URL" type="string" required>
+  ⚠️ URL of the backend API server
+
+  **Development**:
+  ```bash
+  BACKEND_API_URL="http://localhost:8001"
+  ```
+
+  **Production**:
+  ```bash
+  BACKEND_API_URL="https://api.yourdomain.com"
+  ```
+
+  **Docker**:
+  ```bash
+  BACKEND_API_URL="http://backend:8001"
+  ```
+</ParamField>
+
+### Cloud Storage (Cloudflare R2)
+
+<ParamField path="R2_ENDPOINT" type="string" required>
+  ⚠️ Cloudflare R2 endpoint URL
+
+  **Format**: `https://[account-id].r2.cloudflarestorage.com`
+
+  **Example**:
+  ```bash
+  R2_ENDPOINT="https://1234567890abcdef.r2.cloudflarestorage.com"
+  ```
+
+  Find your account ID in the Cloudflare dashboard under R2.
+</ParamField>
+
+<ParamField path="R2_ACCESS_KEY_ID" type="string" required>
+  ⚠️ R2 access key ID for authentication
+
+  **Example**:
+  ```bash
+  R2_ACCESS_KEY_ID="a1b2c3d4e5f6g7h8i9j0"
+  ```
+
+  Create R2 API tokens in the Cloudflare dashboard.
+</ParamField>
+
+<ParamField path="R2_SECRET_ACCESS_KEY" type="string" required>
+  ⚠️ R2 secret access key for authentication
+
+  **Example**:
+  ```bash
+  R2_SECRET_ACCESS_KEY="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+  ```
+</ParamField>
+
+<ParamField path="R2_BUCKET_NAME" type="string" required>
+  ⚠️ Name of your R2 bucket for file storage
+
+  **Example**:
+  ```bash
+  R2_BUCKET_NAME="decipher-files"
+  ```
+
+  Create the bucket in the Cloudflare R2 dashboard before deploying.
+</ParamField>
+
+<ParamField path="R2_PUBLIC_URL" type="string" required>
+  ⚠️ Public CDN URL for accessing stored files
+
+  **Example**:
+  ```bash
+  R2_PUBLIC_URL="https://files.yourdomain.com"
+  ```
+
+  Configure a custom domain in the Cloudflare R2 dashboard.
+</ParamField>
+
+## Backend Environment Variables
+
+These variables are configured in `backend/.env`.
+
+### Database
+
+<ParamField path="DATABASE_URL" type="string" required>
+  ⚠️ PostgreSQL connection string (same as frontend)
+
+  **Example**:
+  ```bash
+  DATABASE_URL="postgresql://decipher_user:password@localhost:5432/decipher"
+  ```
+</ParamField>
+
+### AI Services
+
+#### Bright Data
+
+<ParamField path="BRIGHT_DATA_API_TOKEN" type="string" required>
+  ⚠️ Bright Data API token for web scraping
+
+  **Example**:
+  ```bash
+  BRIGHT_DATA_API_TOKEN="abc123def456ghi789"
+  ```
+
+  **How to get**:
+  1. Sign up at [brightdata.com](https://brightdata.com)
+  2. Navigate to user settings
+  3. Copy your API token
+
+  New users receive free credits.
+</ParamField>
+
+<ParamField path="BRIGHT_DATA_BROWSER_AUTH" type="string" required>
+  ⚠️ Browser authentication credentials for Bright Data
+
+  **Format**: `username:password`
+
+  **Example**:
+  ```bash
+  BRIGHT_DATA_BROWSER_AUTH="brd-customer-hl_abc123:def456ghi789"
+  ```
+
+  Find this in your Bright Data Web Unlocker zone settings.
+</ParamField>
+
+#### OpenRouter
+
+<ParamField path="OPENROUTER_API_KEY" type="string" required>
+  ⚠️ OpenRouter API key for Google Gemini models
+
+  **Example**:
+  ```bash
+  OPENROUTER_API_KEY="sk-or-v1-abc123def456ghi789"
+  ```
+
+  **How to get**:
+  1. Sign up at [openrouter.ai](https://openrouter.ai)
+  2. Navigate to [API Keys](https://openrouter.ai/keys)
+  3. Create a new API key
+
+  DecipherIt uses OpenRouter to access Google Gemini 1.5 Flash via unified API.
+</ParamField>
+
+#### OpenAI
+
+<ParamField path="OPENAI_API_KEY" type="string" required>
+  ⚠️ OpenAI API key for embeddings
+
+  **Example**:
+  ```bash
+  OPENAI_API_KEY="sk-proj-abc123def456ghi789"
+  ```
+
+  **How to get**:
+  1. Sign up at [platform.openai.com](https://platform.openai.com)
+  2. Navigate to [API Keys](https://platform.openai.com/api-keys)
+  3. Create a new API key
+
+  Used for generating text embeddings for semantic search.
+</ParamField>
+
+#### LemonFox AI
+
+<ParamField path="LEMONFOX_API_KEY" type="string" required>
+  ⚠️ LemonFox API key for text-to-speech
+
+  **Example**:
+  ```bash
+  LEMONFOX_API_KEY="lf_abc123def456"
+  ```
+
+  **How to get**:
+  1. Sign up at [lemonfox.ai](https://lemonfox.ai)
+  2. Navigate to API settings
+  3. Generate an API key
+
+  Used for generating high-quality podcast-style audio overviews.
+</ParamField>
+
+### Vector Database
+
+<ParamField path="QDRANT_API_URL" type="string" required>
+  ⚠️ Qdrant API endpoint URL
+
+  **Local Installation**:
+  ```bash
+  QDRANT_API_URL="http://localhost:6333"
+  ```
+
+  **Docker**:
+  ```bash
+  QDRANT_API_URL="http://qdrant:6333"
+  ```
+
+  **Qdrant Cloud**:
+  ```bash
+  QDRANT_API_URL="https://your-cluster-url.qdrant.io"
+  ```
+</ParamField>
+
+<ParamField path="QDRANT_API_KEY" type="string" optional>
+  ℹ️ API key for Qdrant Cloud authentication
+
+  **Example**:
+  ```bash
+  QDRANT_API_KEY="abc123def456ghi789"
+  ```
+
+  Not required for local Qdrant installations. Only needed for Qdrant Cloud.
+</ParamField>
+
+### Cloud Storage
+
+<ParamField path="CLOUDFLARE_ACCOUNT_ID" type="string" required>
+  ⚠️ Cloudflare account ID
+
+  **Example**:
+  ```bash
+  CLOUDFLARE_ACCOUNT_ID="1234567890abcdef"
+  ```
+
+  Find in the Cloudflare dashboard URL or account settings.
+</ParamField>
+
+<ParamField path="CLOUDFLARE_R2_ACCESS_KEY_ID" type="string" required>
+  ⚠️ R2 access key ID (same as frontend `R2_ACCESS_KEY_ID`)
+
+  **Example**:
+  ```bash
+  CLOUDFLARE_R2_ACCESS_KEY_ID="a1b2c3d4e5f6g7h8i9j0"
+  ```
+</ParamField>
+
+<ParamField path="CLOUDFLARE_R2_SECRET_ACCESS_KEY" type="string" required>
+  ⚠️ R2 secret access key (same as frontend `R2_SECRET_ACCESS_KEY`)
+
+  **Example**:
+  ```bash
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+  ```
+</ParamField>
+
+### Optional Services
+
+<ParamField path="LANGTRACE_API_KEY" type="string" optional>
+  ℹ️ LangTrace API key for observability and tracing
+
+  **Example**:
+  ```bash
+  LANGTRACE_API_KEY="lt_abc123def456"
+  ```
+
+  **How to get**:
+  1. Sign up at [langtrace.ai](https://langtrace.ai)
+  2. Create a new project
+  3. Copy the API key
+
+  Provides detailed observability for AI agent workflows.
+</ParamField>
+
+## Complete Configuration Examples
+
+### Frontend (.env.local)
+
+```bash
+# Database
+DATABASE_URL="postgresql://decipher_user:mypassword@localhost:5432/decipher"
+
+# Authentication
+BETTER_AUTH_SECRET="a8f5f167f44f4964e6c998dee827110c"
+BETTER_AUTH_URL="http://localhost:3000"
+
+# Application URLs
+BACKEND_API_URL="http://localhost:8001"
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+
+# Cloudflare R2 Storage
+R2_ENDPOINT="https://1234567890abcdef.r2.cloudflarestorage.com"
+R2_ACCESS_KEY_ID="a1b2c3d4e5f6g7h8i9j0"
+R2_SECRET_ACCESS_KEY="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+R2_BUCKET_NAME="decipher-files"
+R2_PUBLIC_URL="https://files.decipherit.xyz"
+```
+
+### Backend (.env)
+
+```bash
+# Database
+DATABASE_URL="postgresql://decipher_user:mypassword@localhost:5432/decipher"
+
+# Bright Data (Web Scraping)
+BRIGHT_DATA_API_TOKEN="abc123def456ghi789"
+BRIGHT_DATA_BROWSER_AUTH="brd-customer-hl_abc123:def456ghi789"
+
+# AI Services
+OPENROUTER_API_KEY="sk-or-v1-abc123def456ghi789"
+OPENAI_API_KEY="sk-proj-abc123def456ghi789"
+LEMONFOX_API_KEY="lf_abc123def456"
+
+# Vector Database
+QDRANT_API_URL="http://localhost:6333"
+QDRANT_API_KEY=""
+
+# Cloudflare
+CLOUDFLARE_ACCOUNT_ID="1234567890abcdef"
+CLOUDFLARE_R2_ACCESS_KEY_ID="a1b2c3d4e5f6g7h8i9j0"
+CLOUDFLARE_R2_SECRET_ACCESS_KEY="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+
+# Optional: Observability
+LANGTRACE_API_KEY="lt_abc123def456"
+```
+
+### Docker (.env)
+
+```bash
+# Authentication
+BETTER_AUTH_SECRET="a8f5f167f44f4964e6c998dee827110c"
+BETTER_AUTH_URL="http://localhost:3000"
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+
+# Cloudflare R2 Storage
+R2_ENDPOINT="https://1234567890abcdef.r2.cloudflarestorage.com"
+R2_ACCESS_KEY_ID="a1b2c3d4e5f6g7h8i9j0"
+R2_SECRET_ACCESS_KEY="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+R2_BUCKET_NAME="decipher-files"
+R2_PUBLIC_URL="https://files.decipherit.xyz"
+
+# AI Services
+BRIGHT_DATA_API_TOKEN="abc123def456ghi789"
+BRIGHT_DATA_BROWSER_AUTH="brd-customer-hl_abc123:def456ghi789"
+OPENROUTER_API_KEY="sk-or-v1-abc123def456ghi789"
+OPENAI_API_KEY="sk-proj-abc123def456ghi789"
+LEMONFOX_API_KEY="lf_abc123def456"
+
+# Cloudflare
+CLOUDFLARE_ACCOUNT_ID="1234567890abcdef"
+
+# Optional
+QDRANT_API_KEY=""
+LANGTRACE_API_KEY=""
+```
+
+## Security Best Practices
+
+<Warning>
+  Never commit `.env` files to version control. Always add them to `.gitignore`.
+</Warning>
+
+### Secret Management
+
+1. **Generate Strong Secrets**:
+   ```bash
+   # Generate a secure random string
+   openssl rand -base64 32
+   ```
+
+2. **Use Environment-Specific Values**:
+   - Development: `http://localhost`
+   - Production: `https://yourdomain.com`
+
+3. **Rotate Credentials Regularly**:
+   - Change API keys every 90 days
+   - Rotate auth secrets on security incidents
+
+4. **Use Secret Managers in Production**:
+   - AWS Secrets Manager
+   - HashiCorp Vault
+   - Google Secret Manager
+   - Azure Key Vault
+
+### Validation
+
+Validate your environment configuration before deployment:
+
+```bash
+# Frontend validation
+cd client
+pnpm prisma validate
+
+# Backend validation
+cd backend
+python -c "from dotenv import load_dotenv; load_dotenv(); import os; print('Loaded', len(os.environ), 'variables')"
+```
+
+## Troubleshooting
+
+### Missing Variables
+
+If you see errors about missing environment variables:
+
+1. Check the variable name matches exactly (case-sensitive)
+2. Ensure the `.env` or `.env.local` file is in the correct directory
+3. Restart the development server after changing variables
+
+### Database Connection Fails
+
+Check your `DATABASE_URL` format:
+
+```bash
+# Correct format
+postgresql://username:password@host:port/database
+
+# Common mistakes
+postgres://...  # Wrong protocol
+postgresql://username@host/database  # Missing password
+postgresql://username:password@host  # Missing port and database
+```
+
+### API Key Errors
+
+If API calls fail:
+
+1. Verify the API key is valid and active
+2. Check for extra spaces or newlines in the `.env` file
+3. Ensure you have sufficient credits/quota
+4. Check the service status page
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/self-hosting/installation">
+    Complete installation guide
+  </Card>
+  <Card title="Configuration" icon="gear" href="/self-hosting/configuration">
+    Detailed configuration guide
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/self-hosting/docker-deployment">
+    Deploy using Docker
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/bright-data">
+    Set up Bright Data and AI models
+  </Card>
+</CardGroup>

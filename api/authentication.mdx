@@ -1,0 +1,184 @@
+---
+title: 'Authentication'
+description: 'Authentication methods for the DecipherIt API'
+---
+
+# Authentication
+
+## Current Status
+
+<Info>
+The DecipherIt API **does not currently implement authentication**. All endpoints are publicly accessible without requiring API keys, tokens, or other credentials.
+</Info>
+
+This means you can make requests directly to any endpoint without including authentication headers:
+
+```python
+import requests
+
+# No authentication required
+response = requests.get("http://localhost:8000/api/health")
+print(response.json())
+```
+
+```javascript
+// No authentication required
+fetch('http://localhost:8000/api/health')
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+```bash
+# No authentication required
+curl http://localhost:8000/api/health
+```
+
+## Production Considerations
+
+<Warning>
+For production deployments, implementing authentication is **strongly recommended** to:
+
+- Protect sensitive research data
+- Prevent unauthorized access
+- Track usage per user/organization
+- Implement rate limiting
+- Ensure compliance with security standards
+</Warning>
+
+### Recommended Authentication Methods
+
+When deploying to production, consider implementing one of these authentication strategies:
+
+#### 1. API Key Authentication
+
+Simple and effective for service-to-service communication:
+
+```python
+from fastapi import Header, HTTPException
+
+async def verify_api_key(x_api_key: str = Header()):
+    if x_api_key != os.getenv("API_KEY"):
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return x_api_key
+```
+
+**Usage:**
+
+```bash
+curl -H "X-API-Key: your-api-key" http://localhost:8000/api/health
+```
+
+#### 2. JWT (JSON Web Tokens)
+
+Best for user-based authentication with expiration:
+
+```python
+from fastapi import Depends
+from fastapi.security import HTTPBearer
+
+security = HTTPBearer()
+
+async def verify_token(credentials = Depends(security)):
+    token = credentials.credentials
+    # Verify JWT token
+    return decoded_token
+```
+
+**Usage:**
+
+```bash
+curl -H "Authorization: Bearer your-jwt-token" http://localhost:8000/api/health
+```
+
+#### 3. OAuth 2.0
+
+Ideal for third-party integrations and delegated access:
+
+```python
+from fastapi.security import OAuth2PasswordBearer
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    # Validate OAuth token
+    return user
+```
+
+## CORS and Security
+
+The API currently has permissive CORS settings:
+
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ⚠️ Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+<Warning>
+Update `allow_origins` for production deployments to restrict access to trusted domains:
+
+```python
+allow_origins=[
+    "https://yourdomain.com",
+    "https://app.yourdomain.com"
+]
+```
+</Warning>
+
+## Environment Variables
+
+The API loads configuration from environment variables using `python-dotenv`. Store sensitive credentials in a `.env` file:
+
+```bash
+# .env
+API_KEY=your-secret-api-key
+JWT_SECRET=your-jwt-secret
+DATABASE_URL=postgresql://...
+LANGTRACE_API_KEY=your-langtrace-key
+```
+
+<Note>
+Never commit `.env` files to version control. Add `.env` to your `.gitignore` file.
+</Note>
+
+## Rate Limiting
+
+Consider implementing rate limiting to prevent abuse:
+
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+@app.get("/api/research")
+@limiter.limit("10/minute")
+async def submit_research(request: Request):
+    # Endpoint logic
+    pass
+```
+
+## Database Security
+
+The API uses a connection pool for database access. Ensure your database credentials are:
+
+- Stored in environment variables
+- Use strong passwords
+- Enable SSL/TLS for database connections
+- Restrict database access by IP address
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Introduction" icon="book" href="/api/introduction">
+    Learn about the API architecture
+  </Card>
+  <Card title="Research Endpoints" icon="magnifying-glass" href="/api/research">
+    Start making API requests
+  </Card>
+</CardGroup>

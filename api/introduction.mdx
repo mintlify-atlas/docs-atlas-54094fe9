@@ -1,0 +1,139 @@
+---
+title: 'Introduction'
+description: 'Overview of the DecipherIt API'
+---
+
+# API Introduction
+
+The DecipherIt API is a FastAPI-based REST API that powers intelligent research agents. It enables you to submit research tasks, track their progress, generate audio overviews, create mindmaps, and interact with research content through chat.
+
+## Base URL
+
+The API is served at:
+
+```
+http://localhost:8000/api
+```
+
+<Note>
+All endpoints are prefixed with `/api`. For example, the health check endpoint is available at `/api/health`.
+</Note>
+
+## API Architecture
+
+DecipherIt uses an asynchronous, background task processing model:
+
+1. **Submit Tasks** - Research, audio overview, and mindmap generation tasks are submitted and return immediately with a task ID
+2. **Background Processing** - Tasks are processed asynchronously by AI agents
+3. **Poll for Status** - Check task status and retrieve results using the task ID
+4. **Real-time Chat** - Interact with research content through synchronous chat endpoints
+
+## Core Concepts
+
+### Notebooks
+
+A notebook is the primary organizational unit in DecipherIt. Each research task is associated with a notebook ID, which groups related research, summaries, audio overviews, and mindmaps together.
+
+### Background Tasks
+
+Most operations return a `task_id` immediately and process in the background. Task statuses include:
+
+- `IN_QUEUE` - Task is waiting to be processed
+- `IN_PROGRESS` - Task is currently being processed
+- `COMPLETED` - Task finished successfully
+- `FAILED` - Task encountered an error
+
+### Research Sources
+
+Research can be initiated from multiple source types:
+
+- `URL` - Web-based sources
+- `MANUAL` - Manually provided content
+- `UPLOAD` - Uploaded documents
+
+## Available Endpoints
+
+### Health Check
+
+```http
+GET /api/health
+```
+
+Returns the API health status and current timestamp.
+
+**Response:**
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-03-03T10:30:00.000Z"
+}
+```
+
+### Research Endpoints
+
+- `POST /api/research` - Submit a new research task
+- `GET /api/research/{task_id}` - Get research task status
+- `POST /api/research/audio-overview/{notebook_id}` - Generate audio overview
+- `POST /api/research/mindmap/{notebook_id}` - Generate mindmap
+
+### Chat Endpoints
+
+- `POST /api/chat/message` - Send a chat message and receive AI response
+
+## Request/Response Format
+
+All requests and responses use JSON format. The API follows RESTful conventions:
+
+- `200 OK` - Successful GET request
+- `201 Created` - Successful POST request (synchronous)
+- `202 Accepted` - Successful POST request (asynchronous task submitted)
+- `400 Bad Request` - Invalid request data
+- `404 Not Found` - Resource not found
+- `500 Internal Server Error` - Server error
+
+## CORS Configuration
+
+<Warning>
+The API currently allows requests from all origins (`*`). In production, configure `allow_origins` in the CORS middleware to restrict access to trusted domains.
+</Warning>
+
+The API includes CORS middleware that allows:
+
+- All origins (configure for production)
+- Credentials
+- All HTTP methods
+- All headers
+
+## Error Handling
+
+Errors return a JSON response with an HTTP status code and detail message:
+
+```json
+{
+  "detail": "Task not found."
+}
+```
+
+Common error scenarios:
+
+- Missing required fields (notebook_id, topic/sources)
+- Task or notebook not found
+- Processing failures
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn about API authentication
+  </Card>
+  <Card title="Research API" icon="magnifying-glass" href="/api/research">
+    Submit and track research tasks
+  </Card>
+  <Card title="Chat API" icon="messages" href="/api/chat">
+    Interact with research content
+  </Card>
+  <Card title="Audio & Mindmap APIs" icon="waveform" href="/api/audio">
+    Generate audio overviews and mindmaps
+  </Card>
+</CardGroup>

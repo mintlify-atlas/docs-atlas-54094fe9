@@ -1,0 +1,269 @@
+---
+title: Bright Data MCP Server
+description: Setup and usage of Bright Data's Model Context Protocol server for web scraping
+---
+
+DecipherIt uses the official [Bright Data MCP Server](https://github.com/brightdata-com/brightdata-mcp) for advanced web scraping capabilities that bypass geo-restrictions and bot detection.
+
+## Overview
+
+The Bright Data MCP Server provides:
+
+- **Real-time Web Access** - Access up-to-date information directly from the web
+- **Bypass Geo-restrictions** - Access content regardless of location constraints
+- **Web Unlocker Technology** - Navigate websites with advanced bot detection protection
+- **Browser Control** - Optional remote browser automation capabilities
+- **Seamless Integration** - Works with all MCP-compatible AI assistants
+
+## Prerequisites
+
+- Node.js 20+ and pnpm installed
+- Bright Data account ([sign up](https://brightdata.com) - new users get free credits)
+
+## Environment Variables
+
+### Backend Configuration
+
+Add these environment variables to your backend `.env` file:
+
+```env backend/.env
+BRIGHT_DATA_API_TOKEN=your_bright_data_api_token
+BRIGHT_DATA_BROWSER_AUTH=your_bright_data_browser_auth
+```
+
+<Steps>
+
+### Get Your API Token
+
+1. Sign up at [brightdata.com](https://brightdata.com)
+2. Navigate to your user settings page
+3. Copy your API token
+4. Add it to your `.env` file as `BRIGHT_DATA_API_TOKEN`
+
+### Configure Browser Auth
+
+1. In the Bright Data control panel, navigate to Web Unlocker settings
+2. Get your browser authentication credentials
+3. Add them to your `.env` file as `BRIGHT_DATA_BROWSER_AUTH`
+
+### Web Unlocker Zone (Optional)
+
+By default, DecipherIt creates a Web Unlocker zone automatically using your API token. For advanced use cases:
+
+- Create a custom Web Unlocker zone in your Bright Data control panel
+- This provides more control over proxy settings and usage limits
+
+</Steps>
+
+## Integration Implementation
+
+The Bright Data MCP Server is integrated using CrewAI's `MCPServerAdapter`:
+
+```python backend/agents/topic_research_agent.py
+from mcp import StdioServerParameters
+from crewai_tools import MCPServerAdapter
+import os
+
+server_params = StdioServerParameters(
+    command="pnpm",
+    args=["dlx", "@brightdata/mcp"],
+    env={
+        "API_TOKEN": os.environ["BRIGHT_DATA_API_TOKEN"],
+        "BROWSER_AUTH": os.environ["BRIGHT_DATA_BROWSER_AUTH"]
+    },
+)
+
+# Initialize within agent workflow
+async def run_research_crew(topic: str):
+    with MCPServerAdapter(server_params) as tools:
+        # Tools are now available for agents
+        web_scraping_tools = [tool for tool in tools if tool.name in ["scrape_as_markdown"]]
+        search_tools = [tool for tool in tools if tool.name in ["search_engine"]]
+```
+
+## Available Tools
+
+DecipherIt leverages two key tools from the Bright Data MCP server:
+
+### search_engine
+
+Search the web for relevant information and discover sources:
+
+```python backend/config/topic_research/tasks.py
+# Used by Link Collector Agent
+link_collector_task = Task(
+    description="""Using the search query provided, collect relevant links using the search engine tool.
+    
+    Follow these steps:
+    1. Use the search_engine tool with parameters:
+       - engine: "google"
+       - query: the provided search query
+    2. Select 10 of the most relevant and authoritative links
+    3. Focus on high-quality sources
+    """,
+    agent=web_scraping_link_collector,
+    tools=web_scraping_link_collector_tools
+)
+```
+
+### scrape_as_markdown
+
+Extract and convert web content to clean, structured Markdown format:
+
+```python backend/config/topic_research/tasks.py
+# Used by Web Scraper Agent
+web_scraping_task = Task(
+    description="""Extract raw content from the URL:
+    
+    1. Use scrape_as_markdown to capture ALL raw text
+    2. Return the raw text as a string
+    3. Preserve ALL text exactly as it appears
+    """,
+    agent=web_scraper,
+    tools=web_scraping_tools
+)
+```
+
+## Multi-Agent Workflow
+
+DecipherIt uses parallel execution for efficient scraping:
+
+```python backend/agents/topic_research_agent.py
+import asyncio
+
+# Execute multiple scraping tasks in parallel
+web_scraping_tasks = []
+for link in links:
+    web_scraping_tasks.append(
+        web_scraping_crew.kickoff_async(inputs={
+            "url": link.url,
+            "current_time": current_time,
+        })
+    )
+
+# Gather results concurrently
+web_scraping_results = await asyncio.gather(*web_scraping_tasks)
+
+# Process scraped data
+for link, result in zip(links, web_scraping_results):
+    scraped_data.append({
+        "url": link.url,
+        "page_title": link.title,
+        "content": result.raw
+    })
+```
+
+## AI Agents Using Bright Data
+
+Several specialized agents use Bright Data tools:
+
+### Web Scraping Planner
+
+<Note>
+**Role**: Web Scraping Strategy Expert
+
+**Goal**: Design optimal web scraping plans with targeted search queries to comprehensively gather relevant information.
+
+**Capabilities**: Creates strategic search patterns that ensure comprehensive coverage while avoiding redundancy.
+</Note>
+
+### Link Collector Agent
+
+<Note>
+**Role**: Link Discovery Specialist
+
+**Tools**: `search_engine`
+
+**Goal**: Discover and curate the most comprehensive and relevant collection of web sources.
+
+**Capabilities**: Uses Bright Data's search engine to find authoritative sources globally, bypassing geo-restrictions.
+</Note>
+
+### Web Scraper Agent
+
+<Note>
+**Role**: Web Scraping Engineer
+
+**Tools**: `scrape_as_markdown`
+
+**Goal**: Navigate complex websites and extract targeted information while maintaining data integrity.
+
+**Capabilities**: Uses Bright Data's Web Unlocker to extract clean, structured content from discovered URLs.
+</Note>
+
+## Security Best Practices
+
+<Warning>
+**Important**: Always treat scraped web content as untrusted data.
+</Warning>
+
+DecipherIt automatically implements security measures:
+
+- **Data Validation** - Filters and validates all web data before processing
+- **Structured Extraction** - Uses structured data extraction rather than raw text
+- **Rate Limiting** - Implements rate limiting and error handling
+- **Error Recovery** - Gracefully handles scraping failures with retries
+
+```python backend/agents/topic_research_agent.py
+# Automatic retry configuration
+web_scraping_task = Task(
+    description=TOPIC_RESEARCH_TASK_CONFIGS["web_scraping"]["description"],
+    expected_output=TOPIC_RESEARCH_TASK_CONFIGS["web_scraping"]["expected_output"],
+    agent=web_scraper,
+    max_retries=5  # Automatic retry on failure
+)
+```
+
+## Monitoring and Logging
+
+DecipherIt logs all scraping operations for debugging:
+
+```python backend/agents/topic_research_agent.py
+from loguru import logger
+
+logger.info(f"Running web scraping crew for {len(links)} links")
+
+# Crew logs to file
+web_scraping_crew = Crew(
+    agents=[web_scraper],
+    tasks=[web_scraping_task],
+    verbose=True,
+    output_log_file=f"logs/web_scraping_crew_{current_time}.log"
+)
+```
+
+## Troubleshooting
+
+### Connection Issues
+
+If you encounter connection errors:
+
+1. Verify your `BRIGHT_DATA_API_TOKEN` is correct
+2. Check that `BRIGHT_DATA_BROWSER_AUTH` is properly configured
+3. Ensure pnpm is installed and accessible: `pnpm --version`
+
+### Rate Limiting
+
+The system includes built-in rate limiting:
+
+```python backend/agents/topic_research_agent.py
+web_scraping_crew = Crew(
+    agents=[web_scraper],
+    tasks=[web_scraping_task],
+    max_rpm=20  # Maximum requests per minute
+)
+```
+
+### Scraping Failures
+
+If specific URLs fail to scrape:
+
+- Check the logs in `logs/web_scraping_crew_*.log`
+- Verify the URL is accessible
+- The system will retry up to 5 times automatically
+
+## Next Steps
+
+- Learn about [AI Model Integrations](/integrations/ai-models)
+- Explore [Storage Configuration](/integrations/storage)
+- Review [Architecture Overview](/architecture/overview)

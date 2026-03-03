@@ -1,0 +1,423 @@
+---
+title: 'AI Agents System'
+description: 'CrewAI multi-agent architecture and agent configurations'
+icon: 'robot'
+---
+
+## Multi-Agent Architecture
+
+DecipherIt employs a sophisticated multi-crew architecture powered by **CrewAI**, where specialized AI agents work together to accomplish complex research tasks.
+
+<Info>
+  Each crew is designed for a specific research workflow, with agents collaborating to produce high-quality outputs.
+</Info>
+
+## Agent Crews Overview
+
+DecipherIt implements multiple specialized crews:
+
+<CardGroup cols={2}>
+  <Card title="Planning Crew" icon="map">
+    Strategizes optimal web scraping approaches and search queries
+  </Card>
+  <Card title="Link Collection Crew" icon="link">
+    Discovers relevant sources using Bright Data search
+  </Card>
+  <Card title="Web Scraping Crew" icon="globe">
+    Extracts clean content from discovered URLs
+  </Card>
+  <Card title="Research & Content Crew" icon="book">
+    Analyzes sources and creates comprehensive summaries
+  </Card>
+  <Card title="Chat Crew" icon="comments">
+    Handles interactive Q&A with context awareness
+  </Card>
+  <Card title="Mindmap Crew" icon="sitemap">
+    Creates hierarchical visual representations
+  </Card>
+</CardGroup>
+
+## Topic Research Agent Configuration
+
+### Agent Definitions
+
+Agents are configured with specific roles, goals, and backstories to optimize their performance:
+
+```python backend/config/topic_research/agents.py
+AGENT_CONFIGS = {
+    "web_scraping_planner": {
+        "role": "{topic} Web Scraping Strategy Expert",
+        "goal": "Design an optimal web scraping plan with targeted search queries to comprehensively gather all relevant information about {topic}",
+        "backstory": """You are a distinguished web scraping strategist with extensive experience in planning large-scale web data collection projects. Your expertise lies in breaking down complex topics into precise, targeted search queries that ensure comprehensive coverage."""
+    },
+    "web_scraping_link_collector": {
+        "role": "{topic} Link Discovery Specialist",
+        "goal": "Discover and curate the most comprehensive and relevant collection of web sources about {topic}",
+        "backstory": """You are an elite web research specialist with unparalleled expertise in discovering high-quality information sources. Your background includes years of experience in advanced search techniques and source evaluation."""
+    },
+    "web_scraper": {
+        "role": "{topic} Expert Web Scraping Engineer",
+        "goal": "Navigate through complex websites, extract targeted information about {topic}, and compile comprehensive datasets",
+        "backstory": """You are an elite web scraping engineer with unparalleled expertise in automated data extraction and web navigation."""
+    },
+    "researcher": {
+        "role": "{topic} Senior Research Analyst & Knowledge Synthesizer",
+        "goal": "Conduct exhaustive analysis of multi-source data about {topic}, uncovering hidden patterns and producing comprehensive research insights",
+        "backstory": """You are an elite research analyst with decades of experience in knowledge synthesis and pattern recognition across complex datasets."""
+    },
+    "content_writer": {
+        "role": "{topic} Senior Content Strategist & Research Synthesizer",
+        "goal": "Transform extensive research findings about {topic} into meticulously structured, deeply informative content",
+        "backstory": """You are an elite content strategist with extensive experience in research synthesis and long-form content creation."""
+    }
+}
+```
+
+### Task Configuration
+
+Tasks define what each agent should accomplish:
+
+```python backend/config/topic_research/tasks.py
+TASK_CONFIGS = {
+    "planner": {
+        "description": """Generate 3 unique search queries for the topic \"{topic}\".
+        
+        Your task:
+        1. Create 3 different search queries to research this topic
+        2. Keep the queries simple and clear
+        3. Format output as a JSON object
+        
+        Output format required:
+        {
+            "search_queries": [
+                "query1",
+                "query2",
+                "query3"
+            ]
+        }""",
+        "expected_output": "A JSON object containing 3 unique search queries"
+    },
+    "link_collector": {
+        "description": """Using the search query provided, collect relevant links using the search_engine tool.
+        
+        Follow these steps:
+        1. Use the search_engine tool with engine: \"google\" and the provided query
+        2. Select 10 of the most relevant and authoritative links
+        3. Format as JSON: {\"links\": [{\"url\": ..., \"title\": ...}]}""",
+        "expected_output": "A JSON object with array of relevant, high-quality links"
+    }
+}
+```
+
+## Topic Research Workflow
+
+Here's the complete implementation of the topic research agent:
+
+```python backend/agents/topic_research_agent.py
+from crewai import Agent, Crew, Task, Process
+from mcp import StdioServerParameters
+from crewai_tools import MCPServerAdapter
+import asyncio
+
+server_params = StdioServerParameters(
+    command="pnpm",
+    args=["dlx", "@brightdata/mcp"],
+    env={
+        "API_TOKEN": os.environ["BRIGHT_DATA_API_TOKEN"],
+        "BROWSER_AUTH": os.environ["BRIGHT_DATA_BROWSER_AUTH"]
+    },
+)
+
+async def run_research_crew(topic: str):
+    logger.info(f"Running topic research crew for topic: {topic}")
+    
+    with MCPServerAdapter(server_params) as tools:
+        # Filter tools for specific agents
+        web_scraping_link_collector_tools = [
+            tool for tool in tools if tool.name in ["search_engine"]
+        ]
+        
+        web_scraping_tools = [
+            tool for tool in tools if tool.name in ["scrape_as_markdown"]
+        ]
+        
+        # Create planning crew
+        web_scraping_planner = Agent(
+            role=AGENT_CONFIGS["web_scraping_planner"]["role"],
+            goal=AGENT_CONFIGS["web_scraping_planner"]["goal"],
+            backstory=AGENT_CONFIGS["web_scraping_planner"]["backstory"],
+            verbose=True,
+            llm=llm,
+        )
+        
+        planner_task = Task(
+            description=TASK_CONFIGS["planner"]["description"],
+            expected_output=TASK_CONFIGS["planner"]["expected_output"],
+            agent=web_scraping_planner,
+            max_retries=5,
+            output_pydantic=WebScrapingPlannerTaskResult
+        )
+        
+        planning_crew = Crew(
+            agents=[web_scraping_planner],
+            tasks=[planner_task],
+            verbose=True,
+            process=Process.sequential,
+            max_rpm=20
+        )
+        
+        # Execute planning crew
+        planning_crew_result = await planning_crew.kickoff_async(
+            inputs={"topic": topic, "current_time": current_time}
+        )
+        
+        search_queries = planning_crew_result["search_queries"]
+        
+        # Create parallel tasks for link collection
+        link_collector_tasks = []
+        for search_query in search_queries:
+            link_collector_tasks.append(
+                web_scraping_link_collector_crew.kickoff_async(
+                    inputs={"topic": topic, "search_query": search_query}
+                )
+            )
+        
+        # Execute all tasks in parallel
+        link_collector_results = await asyncio.gather(*link_collector_tasks)
+        
+        # Process and deduplicate links
+        links = []
+        for result in link_collector_results:
+            result_links = result["links"]
+            for link in result_links:
+                if link.url not in [l.url for l in links]:
+                    links.append(link)
+        
+        # Parallel web scraping
+        web_scraping_tasks = [
+            web_scraping_crew.kickoff_async(
+                inputs={"topic": topic, "url": link.url}
+            )
+            for link in links
+        ]
+        
+        web_scraping_results = await asyncio.gather(*web_scraping_tasks)
+        
+        # Collect scraped data
+        scraped_data = [
+            {"url": link.url, "page_title": link.title, "content": result.raw}
+            for link, result in zip(links, web_scraping_results)
+        ]
+        
+        # Final research and content creation
+        research_content_crew_result = await research_content_crew.kickoff_async(
+            inputs={"topic": topic, "scraped_data": scraped_data}
+        )
+        
+        return {
+            "blog_post": research_content_crew_result["blog_post"],
+            "title": research_content_crew_result["title"],
+            "links": [link.model_dump() for link in links],
+            "scraped_data": scraped_data,
+            "faq": [faq.model_dump() for faq in faq_result]
+        }
+```
+
+<Note>
+  The workflow uses `asyncio.gather()` to execute multiple web scraping tasks in parallel for optimal performance.
+</Note>
+
+## Chat Agent
+
+The chat agent provides interactive Q&A capabilities:
+
+```python backend/agents/chat_agent.py
+from crewai import Agent, Crew, Task, Process
+from services.qdrant_service import qdrant_service
+
+async def get_relevant_sources(notebook_id: str, query: str):
+    results = await qdrant_service.search(query, notebook_id)
+    
+    output = ""
+    for result in results:
+        source_info = "Source: Provided Text"
+        if result.get('url'):
+            page_title = result.get('page_title', '')
+            source_info = f"Source: {page_title} ({result['url']})"
+        output += f"Content: {result['content_chunk']}\n{source_info}\n---\n"
+    
+    return output
+
+def get_decipher_crew():
+    decipher_agent = Agent(
+        role="Decipher",
+        goal="Analyze and decode questions to provide precise answers",
+        backstory="""You're Decipher, an analytical assistant specialized in 
+        breaking down complex queries and providing clear, accurate responses.""",
+        verbose=True,
+        llm=llm,
+    )
+    
+    answer_question_task = Task(
+        description="""Answer based on relevant sources and chat context.
+        
+        Chat History:
+        ```
+        {chat_history}
+        ```
+        
+        User Question:
+        ```
+        {question}
+        ```
+        
+        Relevant Sources:
+        ```
+        {relevant_sources}
+        ```
+        """,
+        expected_output="""A markdown-formatted response with answer and sources.""",
+        agent=decipher_agent,
+    )
+    
+    return Crew(
+        agents=[decipher_agent],
+        tasks=[answer_question_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
+async def run_chat_agent(notebook_id: str, messages: List[ChatMessage]):
+    # Build chat history
+    chat_history = "\n".join(
+        f"{message.role}: {message.content}" 
+        for message in messages[-10:-1]
+    )
+    
+    # Rewrite question for better vector search
+    search_query = messages[-1].content
+    if chat_history:
+        search_query = llm.call(f"""Rewrite this question with context:
+        
+        Chat History: {chat_history}
+        Current Question: {messages[-1].content}
+        
+        Output only the rewritten question.""")
+    
+    # Get relevant sources from vector database
+    relevant_sources = await get_relevant_sources(notebook_id, search_query)
+    
+    # Run crew
+    crew = get_decipher_crew()
+    crew_result = await crew.kickoff_async(
+        inputs={
+            "question": messages[-1].content,
+            "chat_history": chat_history,
+            "relevant_sources": relevant_sources,
+            "topic": notebook["title"]
+        }
+    )
+    
+    return crew_result.raw
+```
+
+<Info>
+  The chat agent rewrites questions using chat history context to improve vector search accuracy.
+</Info>
+
+## Mindmap Agent
+
+The mindmap agent creates hierarchical visualizations:
+
+```python backend/agents/mindmap_agent.py
+def get_mindmap_crew():
+    content_analyzer = Agent(
+        role="Research Content Analyst",
+        goal="Analyze research content to identify main themes and hierarchical relationships up to 5 levels deep",
+        backstory="""You are an expert content analyst who excels at breaking down 
+        complex research into logical hierarchical structures.""",
+        llm=llm,
+        verbose=True
+    )
+    
+    mindmap_creator = Agent(
+        role="Mindmap Specialist",
+        goal="Create the final mindmap structure as a nested dictionary",
+        backstory="""You are a mindmap specialist who transforms analyzed content 
+        into well-organized nested dictionary formats.""",
+        llm=llm,
+        verbose=True
+    )
+    
+    analyze_content_task = Task(
+        description="""Analyze research content and identify hierarchical themes:
+        - Level 1: ONE main central topic
+        - Level 2: Primary categories (3-6 major categories)
+        - Level 3: Secondary subtopics (2-5 per category)
+        - Level 4: Detailed aspects (if content warrants it)
+        - Level 5: Specific details (only if highly detailed)
+        
+        Research Content:
+        ```
+        {research}
+        ```
+        """,
+        expected_output="A hierarchical breakdown with appropriate depth (2-5 levels)",
+        agent=content_analyzer
+    )
+    
+    create_mindmap_task = Task(
+        description="""Create mindmap structure with hierarchical nodes.
+        
+        Structure must have:
+        - Root node: id="root", text, display={"block": true}, nodes array
+        - Child nodes: unique id, text, nodes array
+        - Empty nodes arrays [] for leaf nodes
+        """,
+        expected_output="A hierarchical node structure representing the mindmap",
+        output_pydantic=SimpleMindmapStructure,
+        agent=mindmap_creator,
+        context=[analyze_content_task]
+    )
+    
+    return Crew(
+        agents=[content_analyzer, mindmap_creator],
+        tasks=[analyze_content_task, create_mindmap_task],
+        process=Process.sequential,
+        verbose=True,
+    )
+```
+
+## Agent Best Practices
+
+<Tabs>
+  <Tab title="Configuration">
+    - Use descriptive roles that guide agent behavior
+    - Set specific, measurable goals
+    - Provide detailed backstories for context
+    - Configure appropriate max_retries for reliability
+  </Tab>
+  <Tab title="Performance">
+    - Use `Process.sequential` for dependent tasks
+    - Leverage `asyncio.gather()` for parallel execution
+    - Set `max_rpm` to control API rate limits
+    - Enable verbose logging for debugging
+  </Tab>
+  <Tab title="Quality">
+    - Use Pydantic models for structured outputs
+    - Provide clear task descriptions and expected outputs
+    - Include context from previous tasks when needed
+    - Validate outputs before returning to users
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Web Scraping" icon="globe" href="/architecture/web-scraping">
+    Learn about Bright Data MCP Server integration
+  </Card>
+  <Card title="Vector Search" icon="magnifying-glass" href="/architecture/vector-search">
+    Understand Qdrant embeddings and search
+  </Card>
+</CardGroup>

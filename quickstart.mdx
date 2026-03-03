@@ -1,80 +1,227 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start Guide"
+description: "Get from account creation to your first research notebook in minutes with DecipherIt"
 ---
 
-## Get started in three steps
+## Get Started in 3 Minutes
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through creating your first research notebook with DecipherIt. You'll learn how to create an account, add research sources, and generate AI-powered insights.
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Create Your Account">
+    Visit [decipherit.xyz](https://decipherit.xyz) and click **Get Started** or **Sign In**.
+    
+    Create your account using:
+    - Email and password
+    - GitHub OAuth (recommended for developers)
+    
+    DecipherIt uses **Better Auth** for secure, modern authentication with Prisma ORM for data management.
+    
+    <Tip>
+      Using GitHub OAuth? You'll be automatically redirected to your dashboard after authentication.
+    </Tip>
+  </Step>
+
+  <Step title="Create Your First Notebook">
+    Once logged in, you'll see your dashboard. Click **Create New Notebook** or the **+** button.
+    
+    You'll be presented with options to add research sources:
+    
+    ### Research Source Options
+    
+    <Tabs>
+      <Tab title="Topic Research">
+        Enter any topic you want to research. Examples:
+        - "Latest developments in quantum computing"
+        - "Climate change impact on coastal cities"
+        - "Best practices for React 19"
+        
+        **What happens:** The Web Scraping Planner creates a strategic research plan, the Link Collector Agent uses Bright Data's `search_engine` to find relevant sources globally, and the Web Scraper Agent extracts content using `scrape_as_markdown`.
+      </Tab>
+      
+      <Tab title="Upload Documents">
+        Upload your files for AI-powered analysis:
+        - **PDF** documents
+        - **DOCX** Word files
+        - **PPTX** PowerPoint presentations
+        - **XLSX** Excel spreadsheets
+        
+        Files are processed using **MarkItDown** to extract and convert content to markdown format, then stored securely in Cloudflare R2.
+      </Tab>
+      
+      <Tab title="Add URLs">
+        Paste URLs from websites you want to analyze:
+        - Blog posts and articles
+        - Research papers
+        - News articles
+        - Documentation pages
+        
+        The Web Scraper Agent uses Bright Data's MCP Server to bypass geo-restrictions and bot detection, extracting clean content.
+      </Tab>
+      
+      <Tab title="Manual Text">
+        Paste or type text directly:
+        - Meeting notes
+        - Interview transcripts
+        - Draft content
+        - Any text you want to analyze
+        
+        Text is processed immediately and integrated with other sources.
+      </Tab>
+    </Tabs>
+    
+    <Note>
+      You can combine multiple source types in a single notebook! For example, upload a PDF, add some URLs, and enter a research topic.
+    </Note>
+  </Step>
+
+  <Step title="AI Processing Begins">
+    Click **Create Notebook** to start the AI processing pipeline.
+    
+    ### What Happens Behind the Scenes
+    
+    <AccordionGroup>
+      <Accordion title="Immediate Processing" icon="bolt">
+        **Vector Embeddings** - Content is chunked and converted to embeddings using OpenAI's embedding models, then stored in **Qdrant vector database** for semantic search.
+        
+        **Research Analysis** - The Research Analyst agent synthesizes information from all sources, identifying key themes and insights.
+        
+        **FAQ Generation** - AI agents automatically analyze content patterns and generate relevant questions with comprehensive answers.
+      </Accordion>
+      
+      <Accordion title="On-Demand Features" icon="wand-magic-sparkles">
+        These features generate when you request them:
+        
+        **Audio Overviews** - Click the audio button to trigger the Podcast Script Generator agent, which creates conversational scripts converted to high-quality audio using **LemonFox TTS** with multiple AI voices (Michael and Sarah).
+        
+        **Mindmaps** - Request a mindmap to trigger the Content Analyzer and Mindmap Creator agents, which analyze research structure and generate hierarchical visualizations with up to 5 levels of depth using **react-mindmap-visualiser**.
+        
+        **Interactive Q&A** - Ask questions anytime using natural language. The Decipher agent uses vector similarity search through Qdrant to retrieve relevant context and provide accurate answers.
+      </Accordion>
+    </AccordionGroup>
+    
+    <Info>
+      Processing time varies based on source quantity and complexity. Topic research typically takes 2-5 minutes as multiple CrewAI crews work in parallel.
+    </Info>
+  </Step>
+
+  <Step title="Explore Your Research Notebook">
+    Once processing completes, your notebook opens with multiple tabs:
+    
+    ### Notebook Features
+    
+    <CardGroup cols={2}>
+      <Card title="Summary" icon="file-lines">
+        AI-generated comprehensive summary created by Research Analyst and Content Writer agents working together
+      </Card>
+      <Card title="Q&A Chat" icon="messages">
+        Interactive chat powered by Qdrant vector search and the Decipher agent - ask anything about your research
+      </Card>
+      <Card title="FAQs" icon="circle-question">
+        Automatically generated questions and answers from AI content analysis
+      </Card>
+      <Card title="Sources" icon="link">
+        All source materials with links to original content and page titles
+      </Card>
+      <Card title="Audio Overview" icon="headphones">
+        Generate podcast-style audio discussion (4-5 minutes) with multiple AI voices
+      </Card>
+      <Card title="Mindmap" icon="diagram-project">
+        Interactive visual hierarchy showing research structure and relationships
+      </Card>
+    </CardGroup>
+  </Step>
+</Steps>
+
+## Example Use Cases
 
 <AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+  <Accordion title="Academic Research" icon="graduation-cap">
+    Upload research papers (PDFs), add relevant URLs, and enter your research topic. Get comprehensive summaries, auto-generated FAQs for study guides, and interactive Q&A to explore concepts.
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
+    **Best for:** Literature reviews, thesis research, learning new subjects
   </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+  
+  <Accordion title="Content Research" icon="pen-fancy">
+    Enter a topic you're writing about and add specific URLs. Get AI-synthesized insights from multiple sources, generate FAQs for your audience, and create audio versions of your research.
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
+    **Best for:** Blog posts, articles, content creation, journalism
+  </Accordion>
+  
+  <Accordion title="Market Research" icon="chart-line">
+    Research competitors, industry trends, or market conditions. Add URLs from industry reports, news articles, and company websites. Get structured summaries and visual mindmaps of market landscape.
+    
+    **Best for:** Business analysis, competitive intelligence, trend research
+  </Accordion>
+  
+  <Accordion title="Technical Documentation" icon="code">
+    Upload documentation files, add official docs URLs, and ask technical questions. Get clear explanations and generate FAQs for your team.
+    
+    **Best for:** Technology learning, API research, framework documentation
   </Accordion>
 </AccordionGroup>
 
-### Step 2: Deploy your changes
+## Understanding AI Processing
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+### CrewAI Agents at Work
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+DecipherIt employs multiple specialized AI crews:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Planning Crew" icon="chess">
+    Web Scraping Planner strategizes optimal data collection approaches for your research topic
+  </Card>
+  <Card title="Discovery Crew" icon="compass">
+    Link Collector Agent uses `search_engine` to find relevant sources globally
+  </Card>
+  <Card title="Scraping Crew" icon="download">
+    Web Scraper Agent uses `scrape_as_markdown` to extract clean, structured content
+  </Card>
+  <Card title="Analysis Crew" icon="magnifying-glass-chart">
+    Research Analyst synthesizes information from multiple sources
+  </Card>
+  <Card title="Content Crew" icon="pen-nib">
+    Content Writer creates engaging, well-structured summaries
+  </Card>
+  <Card title="FAQ Crew" icon="circle-question">
+    FAQ Generator automatically creates relevant Q&A pairs
+  </Card>
+  <Card title="Visualization Crew" icon="diagram-project">
+    Mindmap Creator analyzes structure for hierarchical visual representations
+  </Card>
+  <Card title="Audio Crew" icon="podcast">
+    Script Writer and TTS agents create podcast-style conversations
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Explore All Features" icon="compass" href="/features">
+    Learn about every feature in detail
+  </Card>
+  <Card title="Deep Research" icon="microscope" href="/features/deep-research">
+    Master topic-based research with Bright Data
+  </Card>
+  <Card title="Interactive Q&A" icon="comments" href="/features/interactive-qa">
+    Learn how vector search powers conversations
+  </Card>
+  <Card title="Audio Overviews" icon="headphones" href="/features/audio-overviews">
+    Generate podcast-style audio summaries
+  </Card>
+</CardGroup>
+
+<Tip>
+  **Pro Tip:** Combine multiple source types for the most comprehensive research. Upload PDFs, add URLs, and enter topics together for richer insights!
+</Tip>
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/mtwn105/decipher-research-agent/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="Architecture Guide" icon="sitemap" href="/architecture/overview">
+    Understand how DecipherIt works under the hood
+  </Card>
+</CardGroup>

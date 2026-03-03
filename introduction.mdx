@@ -1,0 +1,140 @@
+---
+title: "DecipherIt - AI-Powered Research Assistant"
+description: "Transform your research process with AI-powered intelligence. Conduct deep research, generate summaries, create mindmaps, and produce podcast-style audio overviews."
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="DecipherIt Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="DecipherIt Hero Dark"
+/>
+
+## Welcome to DecipherIt
+
+DecipherIt is a cutting-edge **AI-powered research assistant** inspired by Google NotebookLM that revolutionizes how researchers, students, and professionals explore, analyze, and synthesize information from the web.
+
+Transform any combination of documents, URLs, or topics into comprehensive research notebooks complete with AI-generated summaries, interactive Q&A capabilities, audio overviews, visual mindmaps, and automatically generated FAQs.
+
+## The Problem We Solve
+
+Traditional research is time-consuming and fragmented. Researchers often struggle with:
+
+<CardGroup cols={2}>
+  <Card title="Information Overload" icon="magnifying-glass">
+    Sifting through countless sources manually wastes valuable research time
+  </Card>
+  <Card title="Access Barriers" icon="globe">
+    Geo-restrictions and bot detection block valuable content from different regions
+  </Card>
+  <Card title="Synthesis Challenges" icon="puzzle-piece">
+    Difficulty connecting insights across multiple sources and formats
+  </Card>
+  <Card title="Format Limitations" icon="file">
+    Converting research into different formats for various audiences is complex
+  </Card>
+</CardGroup>
+
+DecipherIt addresses these challenges by leveraging **Bright Data's MCP Server** for unrestricted, intelligent web access combined with advanced **CrewAI agents** that understand, synthesize, and present information in multiple formats.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Deep Research" icon="microscope" href="/features/deep-research">
+    Conduct thorough research on any topic with AI-assisted analysis using specialized CrewAI agents that strategically plan data collection and discover diverse sources globally
+  </Card>
+  <Card title="Multi-Source Research" icon="layer-group" href="/features/multi-source-research">
+    Seamlessly integrate documents (PDF, DOCX, PPTX, XLSX), URLs, manual text, and topics into unified research spaces processed by AI agents
+  </Card>
+  <Card title="AI-Powered Summaries" icon="brain" href="/features/ai-summaries">
+    Generate comprehensive, well-structured research analyses using Research Analyst and Content Writer agents working together
+  </Card>
+  <Card title="Interactive Q&A" icon="comments" href="/features/interactive-qa">
+    Chat with your research using vector embeddings and semantic search through Qdrant database for contextual answers
+  </Card>
+  <Card title="Audio Overviews" icon="headphones" href="/features/audio-overviews">
+    AI-generated podcast-style audio summaries with multiple voices using LemonFox TTS and specialized script generator agents
+  </Card>
+  <Card title="Smart FAQ Generation" icon="circle-question" href="/features/faq-generation">
+    Automatically create relevant FAQs from your research content using AI content analysis
+  </Card>
+  <Card title="Visual Mindmaps" icon="diagram-project" href="/features/mindmaps">
+    Generate interactive, hierarchical mindmaps up to 5 levels deep to visualize research structure and connections
+  </Card>
+  <Card title="Global Web Access" icon="earth-americas" href="/integrations/bright-data">
+    Bypass geo-restrictions and bot detection using Bright Data's MCP Server infrastructure for comprehensive research coverage
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Input Your Research Sources">
+    Enter any topic, upload documents, add custom URLs, or input manual text. DecipherIt accepts multiple formats simultaneously for comprehensive research.
+  </Step>
+  <Step title="AI Planning & Discovery">
+    The Web Scraping Planner creates a strategic research plan. The Link Collector Agent uses Bright Data's search engine to find relevant sources globally, bypassing geo-restrictions.
+  </Step>
+  <Step title="Intelligent Scraping">
+    The Web Scraper Agent uses Bright Data's `scrape_as_markdown` tool to extract content and convert it to clean, structured markdown format automatically.
+  </Step>
+  <Step title="AI Analysis & Synthesis">
+    Research Analyst agents synthesize information from multiple sources while Content Writer agents create comprehensive, engaging summaries.
+  </Step>
+  <Step title="Multi-Format Output">
+    Get research summaries, vector embeddings for Q&A (Qdrant + OpenAI), auto-generated FAQs, visual mindmaps (react-mindmap-visualiser), and podcast-style audio overviews (LemonFox TTS).
+  </Step>
+</Steps>
+
+## Powered by Cutting-Edge Technology
+
+<CardGroup cols={2}>
+  <Card title="CrewAI Multi-Agent Framework" icon="users">
+    Specialized crews handle research, web scraping, analysis, content creation, FAQ generation, and visualization with autonomous AI agents
+  </Card>
+  <Card title="Bright Data MCP Server" icon="server">
+    Official Model Context Protocol server for real-time web access with search_engine and scrape_as_markdown tools
+  </Card>
+  <Card title="Vector-Powered Search" icon="database">
+    Qdrant vector database with OpenAI embeddings enables semantic search and intelligent Q&A capabilities
+  </Card>
+  <Card title="Modern Tech Stack" icon="code">
+    Next.js 15 + React 19 frontend, FastAPI + Python 3.12 backend, PostgreSQL database, and Cloudflare R2 storage
+  </Card>
+</CardGroup>
+
+## Live Demo & Source Code
+
+<CardGroup cols={2}>
+  <Card title="Try DecipherIt" icon="play" href="https://decipherit.xyz">
+    Experience the platform live at decipherit.xyz
+  </Card>
+  <Card title="View on GitHub" icon="github" href="https://github.com/mtwn105/decipher-research-agent">
+    Explore the open-source codebase and contribute
+  </Card>
+</CardGroup>
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+    Get from account creation to your first research notebook in minutes
+  </Card>
+  <Card title="Explore Features" icon="compass" href="/features">
+    Learn about all major features and capabilities in detail
+  </Card>
+  <Card title="Self-Hosting" icon="server" href="/self-hosting/installation">
+    Deploy your own instance with our comprehensive installation guide
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand the technical architecture and AI agent workflows
+  </Card>
+</CardGroup>
+
+<Info>
+  **Open Source & Free** - DecipherIt is MIT licensed and available for everyone. Star us on [GitHub](https://github.com/mtwn105/decipher-research-agent) to support the project!
+</Info>

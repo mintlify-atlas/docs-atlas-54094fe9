@@ -1,0 +1,229 @@
+---
+title: 'Installation'
+description: 'Complete installation guide for self-hosting DecipherIt'
+icon: 'download'
+---
+
+## Prerequisites
+
+Before installing DecipherIt, ensure you have the following installed on your system:
+
+### Required Software
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    Version 20 or higher required for the frontend
+  </Card>
+  <Card title="Python" icon="python">
+    Version 3.12 or higher required for the backend
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    Version 14 or higher for data storage
+  </Card>
+  <Card title="Docker" icon="docker">
+    Optional, for containerized deployment
+  </Card>
+</CardGroup>
+
+### Package Managers
+
+- **pnpm** - Fast, disk space efficient package manager for Node.js
+- **uv** - Fast, disk space efficient package manager for Python
+
+<CodeGroup>
+
+```bash npm
+npm install -g pnpm
+```
+
+```bash curl
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+</CodeGroup>
+
+<Warning>
+  DecipherIt requires specific versions: Node.js 20+, Python 3.12+, and PostgreSQL 14+. Older versions may not work correctly.
+</Warning>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the DecipherIt repository from GitHub:
+
+    ```bash
+    git clone https://github.com/mtwn105/decipher-research-agent.git
+    cd decipher-research-agent
+    ```
+  </Step>
+
+  <Step title="Set Up PostgreSQL Database">
+    Create a PostgreSQL database for DecipherIt:
+
+    ```sql
+    CREATE DATABASE decipher;
+    CREATE USER decipher_user WITH PASSWORD 'your_password';
+    GRANT ALL PRIVILEGES ON DATABASE decipher TO decipher_user;
+    ```
+
+    <Note>
+      Make note of your database credentials - you'll need them for the environment variables.
+    </Note>
+  </Step>
+
+  <Step title="Install Frontend Dependencies">
+    Navigate to the client directory and install dependencies:
+
+    ```bash
+    cd client
+    pnpm install
+    ```
+
+    This will install all required packages including:
+    - Next.js 15.3.2
+    - React 19.0.0
+    - Prisma for database ORM
+    - Better Auth for authentication
+    - Shadcn/ui components
+  </Step>
+
+  <Step title="Configure Frontend Environment">
+    Copy the example environment file and configure it:
+
+    ```bash
+    cp .env.example .env.local
+    ```
+
+    Edit `.env.local` with your configuration. See the [Environment Variables](/self-hosting/environment-variables) page for details.
+  </Step>
+
+  <Step title="Generate Prisma Client and Run Migrations">
+    Generate the Prisma client and set up the database schema:
+
+    ```bash
+    pnpm prisma generate
+    pnpm prisma migrate dev
+    ```
+
+    This creates the necessary database tables and relationships.
+  </Step>
+
+  <Step title="Install Backend Dependencies">
+    Navigate to the backend directory and set up the Python environment:
+
+    ```bash
+    cd ../backend
+    uv venv
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    uv sync
+    ```
+
+    This installs all required packages including:
+    - FastAPI for the API server
+    - CrewAI for multi-agent workflows
+    - Qdrant client for vector search
+    - SQLAlchemy for database operations
+    - MarkItDown for document processing
+  </Step>
+
+  <Step title="Configure Backend Environment">
+    Copy the example environment file and configure it:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Edit `.env` with your configuration. See the [Environment Variables](/self-hosting/environment-variables) page for details.
+  </Step>
+
+  <Step title="Set Up Qdrant Vector Database">
+    DecipherIt uses Qdrant for vector search. You can run it using Docker:
+
+    ```bash
+    docker run -d \
+      --name qdrant \
+      -p 6333:6333 \
+      -v $(pwd)/qdrant_storage:/qdrant/storage \
+      qdrant/qdrant:latest
+    ```
+
+    Or install it locally following the [Qdrant installation guide](https://qdrant.tech/documentation/quick-start/).
+  </Step>
+
+  <Step title="Start the Development Servers">
+    Open two terminal windows and start both servers:
+
+    **Terminal 1 - Frontend:**
+    ```bash
+    cd client
+    pnpm dev
+    ```
+
+    **Terminal 2 - Backend:**
+    ```bash
+    cd backend
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    uv run uvicorn server:app --host 0.0.0.0 --port 8001
+    ```
+
+    <Note>
+      The frontend will be available at `http://localhost:3000` and the backend API at `http://localhost:8001`.
+    </Note>
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Once both servers are running, verify the installation:
+
+1. **Frontend**: Open your browser and navigate to `http://localhost:3000`
+2. **Backend API**: Navigate to `http://localhost:8001/docs` to view the API documentation
+3. **Health Check**: Navigate to `http://localhost:8001/health` to verify the backend is running
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/self-hosting/configuration">
+    Configure DecipherIt for your environment
+  </Card>
+  <Card title="Environment Variables" icon="code" href="/self-hosting/environment-variables">
+    Complete environment variables reference
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/self-hosting/docker-deployment">
+    Deploy using Docker and docker-compose
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/bright-data">
+    Set up Bright Data and other integrations
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Database Connection Issues
+
+If you encounter database connection errors:
+
+1. Verify PostgreSQL is running: `systemctl status postgresql`
+2. Check the `DATABASE_URL` in your `.env.local` and `.env` files
+3. Ensure the database user has the correct permissions
+
+### Port Already in Use
+
+If port 3000 or 8001 is already in use:
+
+```bash
+# Frontend - use a different port
+pnpm dev -- -p 3001
+
+# Backend - specify a different port
+uv run uvicorn server:app --host 0.0.0.0 --port 8002
+```
+
+### Qdrant Connection Failed
+
+If the backend cannot connect to Qdrant:
+
+1. Verify Qdrant is running: `docker ps` or check the local service
+2. Check the `QDRANT_API_URL` in your backend `.env` file
+3. Ensure the port 6333 is not blocked by a firewall

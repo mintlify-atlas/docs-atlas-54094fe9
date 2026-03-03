@@ -1,0 +1,479 @@
+---
+title: 'Audio Overview Generation'
+description: 'AI-generated podcast-style audio summaries with text-to-speech'
+icon: 'volume'
+---
+
+## Overview
+
+DecipherIt transforms your research into engaging podcast-style audio overviews. Using CrewAI agents and LemonFox AI text-to-speech, it creates natural conversations between two hosts discussing your research findings.
+
+<Info>
+Audio overviews are generated on-demand and typically ready in 2-4 minutes. The voice and content are AI-generated and may contain inaccuracies or audio glitches.
+</Info>
+
+## How It Works
+
+<Steps>
+  <Step title="Content Preparation">
+    All research content is retrieved from the vector database.
+    
+    **Content Retrieval:**
+    - All chunks for the notebook fetched from Qdrant
+    - Content sorted by chunk index
+    - Assembled into complete research text
+    - Passed to audio generation crew
+    
+    **Implementation:** `backend/agents/audio_overview_agent.py:107-115`
+  </Step>
+
+  <Step title="Research Analysis">
+    A Research Analyst agent extracts and organizes key insights.
+    
+    **Analysis Tasks:**
+    - Identifies main themes and key insights
+    - Highlights important supporting details
+    - Maintains factual accuracy
+    - Organizes points logically for discussion
+    
+    **Implementation:** `backend/agents/audio_overview_agent.py:37-52`
+  </Step>
+
+  <Step title="Conversation Planning">
+    A Podcast Producer agent structures insights into a conversation outline.
+    
+    **Planning Process:**
+    - Designs 4-5 minute conversation flow
+    - Creates natural transitions between topics
+    - Balances thoroughness with brevity
+    - Plans for Michael (host) and Sarah (expert)
+    
+    **Implementation:** `backend/agents/audio_overview_agent.py:54-71`
+  </Step>
+
+  <Step title="Script Writing">
+    A Scriptwriter agent crafts natural podcast dialogue.
+    
+    **Script Requirements:**
+    - Opens with "The DecipherIt Podcast" welcome
+    - 800-1000 words (4-5 minutes)
+    - Casual, natural dialogue
+    - Authentic reactions and interjections
+    - Meaningful back-and-forth discussion
+    
+    **Implementation:** `backend/agents/audio_overview_agent.py:73-97`
+  </Step>
+
+  <Step title="Text-to-Speech Conversion">
+    LemonFox AI converts the script to audio with different voices.
+    
+    **TTS Process:**
+    - Michael: "liam" voice (host)
+    - Sarah: "jessica" voice (expert)
+    - Segments processed concurrently (max 5 at once)
+    - 0.5 second pause between segments
+    - Combined into single MP3 file
+    
+    **Implementation:** `backend/services/tts_service.py:84-191`
+  </Step>
+
+  <Step title="Audio Storage">
+    Final audio is uploaded to Cloudflare R2 storage.
+    
+    **Storage Process:**
+    - Upload to R2 bucket
+    - Generate public URL
+    - Save URL to database
+    - Return for playback
+  </Step>
+</Steps>
+
+## Generating Audio Overviews
+
+<Tabs>
+  <Tab title="First Generation">
+    1. Navigate to your processed notebook
+    2. Click the **Audio Overview** tab
+    3. Click **Generate Audio Overview** button
+    4. Wait 2-4 minutes for processing
+    5. Audio player appears when ready
+    
+    <Note>
+    The page automatically polls for completion, so you don't need to refresh.
+    </Note>
+  </Tab>
+  
+  <Tab title="Playback">
+    Once generated, use the audio player to:
+    
+    **Player Features:**
+    - Play/pause controls
+    - Volume adjustment
+    - Seek through timeline
+    - Playback speed control
+    - Download option
+    
+    **UI Implementation:** `client/components/ui/audio-player.tsx`
+  </Tab>
+  
+  <Tab title="Regeneration">
+    If generation fails or you want to retry:
+    
+    1. Click **Try Again** button
+    2. Previous generation is cleared
+    3. New audio generated with same content
+    4. Updated result replaces previous version
+    
+    <Warning>
+    Each regeneration creates a new audio file. Previous versions are not saved.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## CrewAI Audio Generation Workflow
+
+### Agent Configuration
+
+```python
+def get_audio_overview_crew():
+    # Research Analyst
+    research_analyst = Agent(
+        name="Research Analyst",
+        role="Content Analyst",
+        goal="Extract and organize key insights from research content",
+        backstory="""You are an expert research analyst who excels at 
+                     distilling complex information into clear, actionable 
+                     summaries while maintaining accuracy.""",
+        llm=llm,
+        verbose=True
+    )
+    
+    # Conversation Planner
+    conversation_planner = Agent(
+        name="Conversation Planner",
+        role="Podcast Producer",
+        goal="Structure research insights into engaging podcast conversation",
+        backstory="""You are a podcast producer who specializes in 
+                     transforming complex topics into natural, flowing 
+                     conversations that educate and engage.""",
+        llm=llm,
+        verbose=True
+    )
+    
+    # Script Writer
+    script_writer = Agent(
+        name="Script Writer",
+        role="Podcast Scriptwriter",
+        goal="Write natural podcast dialogue",
+        backstory="""You are a scriptwriter who excels at crafting 
+                     authentic podcast conversations that balance education 
+                     with entertainment.""",
+        llm=llm,
+        verbose=True
+    )
+```
+
+**Source:** `backend/agents/audio_overview_agent.py:7-34`
+
+### Script Output Format
+
+```python
+class AudioOverviewTranscript(BaseModel):
+    transcript: List[TranscriptSegment]
+
+class TranscriptSegment(BaseModel):
+    name: str      # "Michael" or "Sarah"
+    transcript: str  # Dialogue text
+```
+
+**Example Output:**
+```python
+[
+    {"name": "Michael", "transcript": "Welcome to The DecipherIt Podcast..."},
+    {"name": "Sarah", "transcript": "Thanks for having me, Michael..."},
+    {"name": "Michael", "transcript": "So let's dive into the research..."}
+]
+```
+
+**Source:** `backend/models/audio_overview_models.py`
+
+## Text-to-Speech Implementation
+
+### TTS Service Architecture
+
+```python
+class TTSService:
+    def __init__(self):
+        self.api_key = os.environ.get("LEMONFOX_API_KEY")
+        self.base_url = "https://api.lemonfox.ai/v1/audio/speech"
+        self.response_format = "mp3"
+        
+        # Voice mapping
+        self.speaker_voices = {
+            "Michael": "liam",    # Host voice
+            "Sarah": "jessica"    # Guest voice
+        }
+        
+        # Performance settings
+        self.pause_duration = 500  # 0.5 seconds between segments
+        self.max_concurrent_requests = 5
+        self.semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+```
+
+**Source:** `backend/services/tts_service.py:16-42`
+
+### Concurrent Generation
+
+```python
+async def generate_audio_from_transcript(
+    self,
+    transcript: List[Dict[str, Any]],
+    notebook_id: str
+) -> bytes:
+    # Process segments concurrently with semaphore for rate limiting
+    tasks = []
+    for i, segment in enumerate(valid_segments):
+        speaker = segment.get("name", "Michael")
+        text = segment.get("transcript", "")
+        voice = self.speaker_voices.get(speaker, "jessica")
+        
+        task = self._generate_audio_with_semaphore(
+            text, voice, i + 1, len(transcript)
+        )
+        tasks.append(task)
+    
+    # Execute all TTS requests concurrently
+    audio_bytes_list = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Combine audio segments
+    return await self._combine_audio_segments(audio_bytes_list, valid_segments)
+```
+
+**Source:** `backend/services/tts_service.py:84-133`
+
+### Audio Combination
+
+```python
+async def _combine_audio_segments(
+    self,
+    audio_bytes_list: List[bytes],
+    valid_segments: List[tuple]
+) -> bytes:
+    combined_audio = None
+    
+    for i, audio_bytes in enumerate(audio_bytes_list):
+        async with self._audio_segment_context(audio_bytes) as segment_audio:
+            if combined_audio is None:
+                combined_audio = segment_audio
+            else:
+                combined_audio += segment_audio
+            
+            # Add pause between segments (except for the last one)
+            if i < len(audio_bytes_list) - 1:
+                pause = AudioSegment.silent(duration=self.pause_duration)
+                combined_audio += pause
+    
+    # Export to MP3
+    output_buffer = io.BytesIO()
+    combined_audio.export(output_buffer, format="mp3")
+    return output_buffer.getvalue()
+```
+
+**Source:** `backend/services/tts_service.py:151-185`
+
+## UI Implementation
+
+### Status Management
+
+The audio overview component tracks generation status:
+
+```typescript
+const [audioOverviewUrl, setAudioOverviewUrl] = useState<string | null>(
+  initialAudioOverviewUrl || null
+);
+
+// Status values:
+// - null: Not generated yet
+// - "IN_PROGRESS": Currently generating
+// - "ERROR": Generation failed
+// - "https://...": Audio URL (success)
+```
+
+**Source:** `client/components/notebook/audio-overview-section.tsx:19-22`
+
+### Polling for Completion
+
+```typescript
+useEffect(() => {
+  if (audioOverviewUrl !== "IN_PROGRESS") {
+    return;
+  }
+  
+  const pollInterval = setInterval(async () => {
+    const response = await fetch(`/api/notebooks/${notebookId}`);
+    const notebook = await response.json();
+    const newAudioUrl = notebook.output?.audioOverviewUrl;
+    
+    if (newAudioUrl && newAudioUrl !== "IN_PROGRESS") {
+      setAudioOverviewUrl(newAudioUrl);
+      
+      if (newAudioUrl === "ERROR") {
+        toast.error("Audio overview generation failed");
+      } else {
+        toast.success("Audio overview ready!");
+      }
+    }
+  }, 3000); // Poll every 3 seconds
+  
+  return () => clearInterval(pollInterval);
+}, [audioOverviewUrl, notebookId]);
+```
+
+**Source:** `client/components/notebook/audio-overview-section.tsx:25-68`
+
+## Audio Quality Features
+
+<CardGroup cols={2}>
+  <Card title="Natural Voices" icon="microphone">
+    High-quality AI voices (Liam and Jessica) create authentic-sounding podcast conversations.
+  </Card>
+  
+  <Card title="Conversational Flow" icon="comments">
+    Script includes natural reactions, interjections, and back-and-forth discussion for engagement.
+  </Card>
+  
+  <Card title="Optimized Length" icon="clock">
+    4-5 minute duration balances comprehensiveness with listenability.
+  </Card>
+  
+  <Card title="Professional Production" icon="waveform-lines">
+    Automatic pausing between segments and smooth transitions create polished output.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="On-the-Go Learning">
+    Listen to research summaries while:
+    - Commuting
+    - Exercising
+    - Doing chores
+    - Taking breaks
+  </Accordion>
+  
+  <Accordion title="Accessibility">
+    Audio format provides:
+    - Alternative to reading long summaries
+    - Accessibility for visual impairments
+    - Multi-modal learning options
+    - Reduced screen time
+  </Accordion>
+  
+  <Accordion title="Content Review">
+    Use audio for:
+    - Quick refreshers on research
+    - Pre-presentation review
+    - Sharing insights with colleagues
+    - Multi-tasking while learning
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimizations
+
+<CardGroup cols={2}>
+  <Card title="Concurrent TTS" icon="bolt">
+    Up to 5 segments processed simultaneously for faster generation.
+  </Card>
+  
+  <Card title="HTTP/2 Support" icon="network-wired">
+    Connection pooling and HTTP/2 reduce API call overhead.
+  </Card>
+  
+  <Card title="Memory Efficiency" icon="memory">
+    Context managers ensure proper cleanup of audio buffers during processing.
+  </Card>
+  
+  <Card title="Progressive Updates" icon="arrows-rotate">
+    UI polls every 3 seconds to show progress without blocking.
+  </Card>
+</CardGroup>
+
+## Technical Details
+
+### Connection Pooling
+
+```python
+async def _get_client(self) -> httpx.AsyncClient:
+    """Get or create HTTP client with connection pooling."""
+    if self._client is None or self._client.is_closed:
+        async with self._client_lock:
+            limits = httpx.Limits(
+                max_keepalive_connections=10,
+                max_connections=20,
+                keepalive_expiry=30.0
+            )
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(300.0),  # 5 minute timeout
+                limits=limits,
+                http2=True
+            )
+    return self._client
+```
+
+**Source:** `backend/services/tts_service.py:44-60`
+
+### Rate Limiting
+
+```python
+self.semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+
+async def _generate_audio_with_semaphore(
+    self,
+    text: str,
+    voice: str,
+    segment_num: int,
+    total_segments: int
+) -> bytes:
+    async with self.semaphore:
+        return await self._generate_audio(text, voice)
+```
+
+**Source:** `backend/services/tts_service.py:42, 139-149`
+
+## Limitations
+
+<Warning>
+- **AI-Generated Content**: Voices and script are AI-generated and may contain inaccuracies
+- **Audio Quality**: May include occasional glitches or unnatural phrasing
+- **Length Constraint**: Limited to 4-5 minutes (800-1000 words)
+- **Processing Time**: Typically 2-4 minutes, varies with content length
+- **Storage**: Audio files stored on Cloudflare R2, availability depends on storage service
+</Warning>
+
+## Best Practices
+
+<Tip>
+**For Best Results:**
+- Generate after research is fully processed
+- Use headphones for best audio quality
+- Download for offline listening
+- Verify important information from the written summary
+- Treat as overview, not definitive source
+</Tip>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="AI Summaries" icon="file-lines" href="/features/ai-summaries">
+    Read the full written summary
+  </Card>
+  
+  <Card title="Interactive Q&A" icon="messages" href="/features/interactive-qa">
+    Ask questions about specific details
+  </Card>
+  
+  <Card title="Mindmaps" icon="diagram-project" href="/features/mindmaps">
+    Visual representation of research structure
+  </Card>
+</CardGroup>

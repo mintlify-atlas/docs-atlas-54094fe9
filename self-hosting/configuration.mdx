@@ -1,0 +1,362 @@
+---
+title: 'Configuration'
+description: 'Configure DecipherIt frontend and backend for your environment'
+icon: 'gear'
+---
+
+## Overview
+
+DecipherIt consists of two main components that need to be configured:
+
+1. **Frontend** - Next.js application with authentication and file storage
+2. **Backend** - FastAPI server with AI agents and vector search
+
+Each component has its own configuration file with specific requirements.
+
+## Frontend Configuration
+
+The frontend uses a `.env.local` file in the `client/` directory.
+
+### Database Configuration
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string for Prisma ORM
+
+  ```bash
+  DATABASE_URL="postgresql://username:password@localhost:5432/decipher"
+  ```
+</ParamField>
+
+<Note>
+  The same database is used by both frontend and backend. Ensure the connection string is identical in both configuration files.
+</Note>
+
+### Authentication Configuration
+
+DecipherIt uses [Better Auth](https://better-auth.com/) for authentication.
+
+<ParamField path="BETTER_AUTH_SECRET" type="string" required>
+  Secret key for signing authentication tokens. Generate a secure random string.
+
+  ```bash
+  BETTER_AUTH_SECRET="your-secure-random-string-here"
+  ```
+</ParamField>
+
+<ParamField path="BETTER_AUTH_URL" type="string" required>
+  Base URL where your application is hosted
+
+  ```bash
+  # Development
+  BETTER_AUTH_URL="http://localhost:3000"
+
+  # Production
+  BETTER_AUTH_URL="https://yourdomain.com"
+  ```
+</ParamField>
+
+<Warning>
+  Keep your `BETTER_AUTH_SECRET` secure and never commit it to version control. Generate it using a cryptographically secure method.
+</Warning>
+
+### Storage Configuration
+
+DecipherIt uses Cloudflare R2 for object storage (documents, audio files).
+
+<ParamField path="R2_ENDPOINT" type="string" required>
+  Your Cloudflare R2 endpoint URL
+
+  ```bash
+  R2_ENDPOINT="https://your-account-id.r2.cloudflarestorage.com"
+  ```
+</ParamField>
+
+<ParamField path="R2_ACCESS_KEY_ID" type="string" required>
+  R2 access key ID for authentication
+
+  ```bash
+  R2_ACCESS_KEY_ID="your-r2-access-key"
+  ```
+</ParamField>
+
+<ParamField path="R2_SECRET_ACCESS_KEY" type="string" required>
+  R2 secret access key for authentication
+
+  ```bash
+  R2_SECRET_ACCESS_KEY="your-r2-secret-key"
+  ```
+</ParamField>
+
+<ParamField path="R2_BUCKET_NAME" type="string" required>
+  Name of your R2 bucket for file storage
+
+  ```bash
+  R2_BUCKET_NAME="decipher-files"
+  ```
+</ParamField>
+
+<ParamField path="R2_PUBLIC_URL" type="string" required>
+  Public URL for accessing stored files via CDN
+
+  ```bash
+  R2_PUBLIC_URL="https://files.yourdomain.com"
+  ```
+</ParamField>
+
+### Application URLs
+
+<ParamField path="NEXT_PUBLIC_BASE_URL" type="string" required>
+  Public base URL of your application (used in client-side code)
+
+  ```bash
+  # Development
+  NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+
+  # Production
+  NEXT_PUBLIC_BASE_URL="https://yourdomain.com"
+  ```
+</ParamField>
+
+<ParamField path="BACKEND_API_URL" type="string" required>
+  URL of the backend API server
+
+  ```bash
+  # Development
+  BACKEND_API_URL="http://localhost:8001"
+
+  # Production
+  BACKEND_API_URL="https://api.yourdomain.com"
+  ```
+</ParamField>
+
+### Complete Frontend Example
+
+```bash .env.local
+DATABASE_URL="postgresql://decipher_user:password@localhost:5432/decipher"
+BETTER_AUTH_SECRET="your-secure-random-string-minimum-32-chars"
+BETTER_AUTH_URL="http://localhost:3000"
+BACKEND_API_URL="http://localhost:8001"
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+
+R2_ENDPOINT="https://your-account-id.r2.cloudflarestorage.com"
+R2_ACCESS_KEY_ID="your-r2-access-key"
+R2_SECRET_ACCESS_KEY="your-r2-secret-key"
+R2_BUCKET_NAME="decipher-files"
+R2_PUBLIC_URL="https://files.yourdomain.com"
+```
+
+## Backend Configuration
+
+The backend uses a `.env` file in the `backend/` directory.
+
+### Database Configuration
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string (same as frontend)
+
+  ```bash
+  DATABASE_URL="postgresql://username:password@localhost:5432/decipher"
+  ```
+</ParamField>
+
+### AI Services Configuration
+
+#### OpenAI
+
+Used for embeddings and text generation.
+
+<ParamField path="OPENAI_API_KEY" type="string" required>
+  Your OpenAI API key for embeddings
+
+  ```bash
+  OPENAI_API_KEY="sk-proj-..."
+  ```
+</ParamField>
+
+Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys).
+
+#### OpenRouter
+
+Used for accessing Google Gemini models.
+
+<ParamField path="OPENROUTER_API_KEY" type="string" required>
+  Your OpenRouter API key for Gemini models
+
+  ```bash
+  OPENROUTER_API_KEY="sk-or-v1-..."
+  ```
+</ParamField>
+
+Get your API key from [OpenRouter](https://openrouter.ai/keys).
+
+#### LemonFox AI
+
+Used for high-quality text-to-speech synthesis.
+
+<ParamField path="LEMONFOX_API_KEY" type="string" required>
+  Your LemonFox API key for TTS
+
+  ```bash
+  LEMONFOX_API_KEY="your-lemonfox-api-key"
+  ```
+</ParamField>
+
+Get your API key from [LemonFox AI](https://lemonfox.ai/).
+
+### Bright Data Configuration
+
+Bright Data provides web scraping capabilities through the MCP server.
+
+<ParamField path="BRIGHT_DATA_API_TOKEN" type="string" required>
+  Your Bright Data API token
+
+  ```bash
+  BRIGHT_DATA_API_TOKEN="your-bright-data-token"
+  ```
+</ParamField>
+
+<ParamField path="BRIGHT_DATA_BROWSER_AUTH" type="string" required>
+  Browser authentication credentials for Bright Data
+
+  ```bash
+  BRIGHT_DATA_BROWSER_AUTH="your-bright-data-browser-auth"
+  ```
+</ParamField>
+
+Get your credentials from [Bright Data](https://brightdata.com/) after signing up.
+
+<Note>
+  Bright Data offers free credits for new users. The Web Unlocker zone is created automatically using your API token.
+</Note>
+
+### Vector Database Configuration
+
+<ParamField path="QDRANT_API_URL" type="string" required>
+  Qdrant API endpoint URL
+
+  ```bash
+  # Local installation
+  QDRANT_API_URL="http://localhost:6333"
+
+  # Cloud instance
+  QDRANT_API_URL="https://your-cluster.qdrant.io"
+  ```
+</ParamField>
+
+<ParamField path="QDRANT_API_KEY" type="string" optional>
+  API key for Qdrant Cloud (not needed for local installation)
+
+  ```bash
+  QDRANT_API_KEY="your-qdrant-api-key"
+  ```
+</ParamField>
+
+### Cloud Storage Configuration
+
+<ParamField path="CLOUDFLARE_ACCOUNT_ID" type="string" required>
+  Your Cloudflare account ID
+
+  ```bash
+  CLOUDFLARE_ACCOUNT_ID="your-cloudflare-account-id"
+  ```
+</ParamField>
+
+<ParamField path="CLOUDFLARE_R2_ACCESS_KEY_ID" type="string" required>
+  R2 access key ID (same as frontend)
+
+  ```bash
+  CLOUDFLARE_R2_ACCESS_KEY_ID="your-r2-access-key"
+  ```
+</ParamField>
+
+<ParamField path="CLOUDFLARE_R2_SECRET_ACCESS_KEY" type="string" required>
+  R2 secret access key (same as frontend)
+
+  ```bash
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY="your-r2-secret-key"
+  ```
+</ParamField>
+
+### Optional: LangTrace
+
+<ParamField path="LANGTRACE_API_KEY" type="string" optional>
+  API key for LangTrace observability (optional)
+
+  ```bash
+  LANGTRACE_API_KEY="your-langtrace-api-key"
+  ```
+</ParamField>
+
+### Complete Backend Example
+
+```bash .env
+# Database
+DATABASE_URL="postgresql://decipher_user:password@localhost:5432/decipher"
+
+# Bright Data
+BRIGHT_DATA_API_TOKEN="your-bright-data-api-token"
+BRIGHT_DATA_BROWSER_AUTH="your-bright-data-browser-auth"
+
+# AI Services
+OPENROUTER_API_KEY="sk-or-v1-..."
+OPENAI_API_KEY="sk-proj-..."
+LEMONFOX_API_KEY="your-lemonfox-api-key"
+
+# Vector Database
+QDRANT_API_KEY="your-qdrant-api-key"
+QDRANT_API_URL="http://localhost:6333"
+
+# Cloud Storage
+CLOUDFLARE_ACCOUNT_ID="your-cloudflare-account-id"
+CLOUDFLARE_R2_ACCESS_KEY_ID="your-r2-access-key"
+CLOUDFLARE_R2_SECRET_ACCESS_KEY="your-r2-secret-key"
+
+# Optional: Observability
+LANGTRACE_API_KEY="your-langtrace-api-key"
+```
+
+## Security Best Practices
+
+<Warning>
+  Never commit `.env` or `.env.local` files to version control. Add them to `.gitignore`.
+</Warning>
+
+1. **Use Strong Secrets**: Generate cryptographically secure random strings for authentication secrets
+2. **Restrict API Keys**: Use API keys with minimum required permissions
+3. **Rotate Credentials**: Regularly rotate API keys and secrets
+4. **Environment Separation**: Use different credentials for development and production
+5. **Secure Storage**: Store production secrets in a secure vault (e.g., AWS Secrets Manager, HashiCorp Vault)
+
+## Production Considerations
+
+### HTTPS/TLS
+
+In production, always use HTTPS:
+
+```bash
+BETTER_AUTH_URL="https://yourdomain.com"
+NEXT_PUBLIC_BASE_URL="https://yourdomain.com"
+```
+
+### CORS Configuration
+
+The backend has CORS middleware enabled. For production, configure allowed origins in the FastAPI application.
+
+### Database Connection Pooling
+
+For production, use connection pooling:
+
+```bash
+DATABASE_URL="postgresql://user:pass@host:5432/decipher?pool_size=20&max_overflow=10"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="code" href="/self-hosting/environment-variables">
+    Complete reference of all environment variables
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/self-hosting/docker-deployment">
+    Deploy using Docker containers
+  </Card>
+</CardGroup>

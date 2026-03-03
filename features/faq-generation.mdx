@@ -1,0 +1,440 @@
+---
+title: 'Smart FAQ Generation'
+description: 'Automatically generated FAQs from your research with detailed answers'
+icon: 'circle-question'
+---
+
+## Overview
+
+DecipherIt automatically generates 10 frequently asked questions with detailed, well-cited answers from your research. FAQs are created by the same CrewAI research agents that analyze your content, ensuring accuracy and relevance.
+
+<Info>
+FAQs are generated automatically during the research processing workflow - no additional action required.
+</Info>
+
+## How It Works
+
+<Steps>
+  <Step title="Research Context">
+    The FAQ generation task uses the research analysis as context.
+    
+    **Context Dependency:**
+    - Executes after research analysis completes
+    - Has access to all research findings
+    - Understands key themes and patterns
+    - Knows which topics are most important
+    
+    **Implementation:** `backend/agents/topic_research_agent.py:154-161`
+  </Step>
+
+  <Step title="Question Generation">
+    The Researcher agent identifies 10 relevant questions readers might ask.
+    
+    **Question Criteria:**
+    - Covers different aspects/themes from research
+    - Progresses from basic to advanced topics
+    - Focuses on likely reader questions
+    - Clear and specific wording
+    - Unique and non-repetitive
+    
+    **Implementation:** `backend/config/topic_research/tasks.py:170-206`
+  </Step>
+
+  <Step title="Answer Creation">
+    Detailed answers are written based on research findings.
+    
+    **Answer Requirements:**
+    - Accurate information from research
+    - Citations from sources
+    - Markdown formatting
+    - Concise but comprehensive
+    - Professional and accessible tone
+    - Relevant quotes when helpful
+    
+    **Implementation:** `backend/config/topic_research/tasks.py:188-205`
+  </Step>
+
+  <Step title="Quality Validation">
+    Pydantic models ensure proper structure and formatting.
+    
+    **Validation:**
+    - Exactly 10 FAQ items
+    - Each has question and answer fields
+    - Answers in markdown format
+    - Proper citation syntax
+    - Clean JSON output
+  </Step>
+</Steps>
+
+## FAQ Structure
+
+<Tabs>
+  <Tab title="Question Format">
+    Questions are crafted to be:
+    
+    **Clear and Specific:**
+    - "What are the main benefits of microservices architecture?"
+    - "How does climate change affect marine ecosystems?"
+    - "What evidence supports the effectiveness of remote work?"
+    
+    **Not:**
+    - Vague: "What is microservices?"
+    - Too broad: "Tell me about climate?"
+    - Yes/no: "Is remote work good?"
+    
+    **Progressive Complexity:**
+    1-3: Basic understanding questions
+    4-7: Intermediate detail questions
+    8-10: Advanced or nuanced questions
+  </Tab>
+  
+  <Tab title="Answer Format">
+    Answers include:
+    
+    ### Direct Response
+    Clear answer to the question with context
+    
+    ### Supporting Evidence
+    Citations and quotes from research sources
+    
+    ### Additional Context
+    Relevant details that enrich understanding
+    
+    ### Source Citations
+    Proper attribution using markdown links:
+    ```markdown
+    > "Quote text" - [Source Title](url)
+    ```
+    
+    **Example:**
+    > "Microservices improve scalability by 40%" - [Microservices Report 2024](https://example.com)
+  </Tab>
+</Tabs>
+
+## Accessing FAQs
+
+<Steps>
+  <Step title="Navigate to Notebook">
+    Go to your processed notebook from the dashboard.
+  </Step>
+
+  <Step title="Open FAQ Tab">
+    Click the **FAQs** tab in the notebook view.
+  </Step>
+
+  <Step title="Browse Questions">
+    Scroll through the 10 auto-generated questions and answers.
+  </Step>
+
+  <Step title="Click Citations">
+    Click source links to verify information or read more.
+  </Step>
+</Steps>
+
+**UI Implementation:** `client/components/notebook/notebook-polling.tsx:179-209`
+
+## Technical Implementation
+
+### FAQ Task Configuration
+
+```python
+faq_task = Task(
+    description="""Generate 10 frequently asked questions and detailed 
+                   answers about "{topic}" based on the research findings.
+                   
+                   Requirements:
+                   - 10 unique and relevant questions
+                   - Questions cover different aspects from research
+                   - Focus on likely reader questions
+                   - Logical progression from basic to advanced
+                   - Clear and specific questions
+                   
+                   Answer Requirements:
+                   - Detailed, accurate answers from research
+                   - Citations from sources
+                   - Markdown formatting
+                   - Concise but comprehensive
+                   - Professional tone
+                   - Include relevant quotes
+                   
+                   Citation Format:
+                   > "Quote text" - [Source Title](url)""",
+    expected_output="""JSON object containing array of 10 FAQ items, 
+                       each with question and detailed answer supported 
+                       by citations from research.""",
+    agent=researcher,
+    context=[research_task],  # Uses research analysis as context
+    max_retries=5,
+    output_pydantic=FaqTaskResult
+)
+```
+
+**Source:** `backend/config/topic_research/tasks.py:170-206`
+
+### Output Data Model
+
+```python
+class FaqItem(BaseModel):
+    question: str
+    answer: str  # Markdown-formatted with citations
+
+class FaqTaskResult(BaseModel):
+    faq: List[FaqItem]  # Exactly 10 items
+```
+
+**Source:** `backend/models/topic_research_models.py`
+
+### Crew Integration
+
+```python
+research_content_crew = Crew(
+    agents=[researcher, content_writer],
+    tasks=[research_task, faq_task, content_task],
+    verbose=True,
+    process=Process.sequential,
+    max_rpm=20
+)
+
+research_content_crew_result = await research_content_crew.kickoff_async(inputs={
+    "topic": topic,
+    "scraped_data": scraped_data,
+    "current_time": current_time,
+})
+
+# Extract FAQ results
+faq_result = faq_task.output.pydantic.faq
+
+return {
+    "blog_post": research_content_crew_result["blog_post"],
+    "title": research_content_crew_result["title"],
+    "faq": [faq.model_dump() for faq in faq_result]
+}
+```
+
+**Source:** `backend/agents/topic_research_agent.py:164-259`
+
+## FAQ Display Component
+
+```typescript
+const FaqList = memo(
+  ({ faqs }: { faqs: { question: string; answer: string }[] }) => {
+    if (!faqs || faqs.length === 0) {
+      return (
+        <div className="text-muted-foreground">
+          No FAQs available for this notebook
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {faqs.map((faq, index) => (
+          <div key={index} className="space-y-2">
+            <h3 className="text-lg font-semibold">{faq.question}</h3>
+            <div className="markdown-container prose prose-sm">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={MarkdownComponents}
+              >
+                {faq.answer}
+              </ReactMarkdown>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+);
+```
+
+**Source:** `client/components/notebook/notebook-polling.tsx:179-209`
+
+## Quality Features
+
+<CardGroup cols={2}>
+  <Card title="Research-Grounded" icon="anchor">
+    All answers strictly based on your research sources with verifiable citations.
+  </Card>
+  
+  <Card title="Progressive Depth" icon="stairs">
+    Questions organized from fundamental to advanced for natural learning flow.
+  </Card>
+  
+  <Card title="Rich Formatting" icon="paintbrush">
+    Markdown rendering supports bold, italic, lists, quotes, and links for readability.
+  </Card>
+  
+  <Card title="Source Transparency" icon="link">
+    Every claim cited with clickable links to original sources.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Quick Reference">
+    Use FAQs for:
+    - Quick answers without reading full summary
+    - Pre-meeting preparation
+    - Overview of key points
+    - Refresher on research findings
+  </Accordion>
+  
+  <Accordion title="Learning and Education">
+    FAQs help with:
+    - Understanding complex topics progressively
+    - Identifying knowledge gaps
+    - Structured learning path
+    - Self-assessment questions
+  </Accordion>
+  
+  <Accordion title="Content Creation">
+    Use FAQs to:
+    - Identify common questions for blog posts
+    - Structure presentations
+    - Create talking points
+    - Develop educational materials
+  </Accordion>
+  
+  <Accordion title="Research Validation">
+    FAQs can:
+    - Highlight areas needing deeper research
+    - Reveal perspective gaps
+    - Identify contradictions
+    - Suggest follow-up questions
+  </Accordion>
+</AccordionGroup>
+
+## Example FAQ Output
+
+<Tabs>
+  <Tab title="Topic Research">
+    **Topic:** "Impact of AI on software development"
+    
+    **Sample Questions:**
+    1. What are the primary ways AI is transforming software development?
+    2. How do AI code assistants improve developer productivity?
+    3. What are the limitations of current AI coding tools?
+    4. How is AI affecting software testing practices?
+    5. What skills should developers focus on in the AI era?
+    6. Are there security concerns with AI-generated code?
+    7. How do different AI models compare for coding tasks?
+    8. What does research say about AI replacing developers?
+    9. How are companies integrating AI into development workflows?
+    10. What future developments in AI for coding are predicted?
+  </Tab>
+  
+  <Tab title="Source Research">
+    **Sources:** Multiple research papers on climate change
+    
+    **Sample Questions:**
+    1. What are the key findings across all the research papers?
+    2. How do the different studies measure climate impact?
+    3. What methodologies are most commonly used?
+    4. Are there any contradictions between the sources?
+    5. What time periods do these studies cover?
+    6. What geographic regions are most studied?
+    7. What are the main limitations mentioned in the papers?
+    8. How do recent findings compare to earlier research?
+    9. What future research directions are suggested?
+    10. What practical applications do the papers recommend?
+  </Tab>
+</Tabs>
+
+## Markdown Rendering
+
+FAQ answers support full markdown:
+
+<CardGroup cols={3}>
+  <Card title="Text Formatting" icon="bold">
+    **Bold**, *italic*, `code`, and regular text mixing
+  </Card>
+  
+  <Card title="Lists" icon="list">
+    Bullet points and numbered lists for organized information
+  </Card>
+  
+  <Card title="Quotes" icon="quote-left">
+    Block quotes for citations and emphasis
+  </Card>
+  
+  <Card title="Links" icon="link">
+    Clickable source citations and references
+  </Card>
+  
+  <Card title="Headings" icon="heading">
+    Subheadings for structured answers
+  </Card>
+  
+  <Card title="Code Blocks" icon="code">
+    Syntax highlighting for technical content
+  </Card>
+</CardGroup>
+
+## Performance Optimizations
+
+<CardGroup cols={2}>
+  <Card title="Memoized Components" icon="bolt">
+    FAQ list component is memoized to prevent unnecessary re-renders.
+  </Card>
+  
+  <Card title="Parallel Generation" icon="network-wired">
+    FAQ task runs in parallel with content creation for faster processing.
+  </Card>
+  
+  <Card title="Structured Output" icon="sitemap">
+    Pydantic models ensure type-safe, validated output without manual parsing.
+  </Card>
+  
+  <Card title="Context Reuse" icon="recycle">
+    Shares research analysis context, avoiding redundant LLM calls.
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Tip>
+**Get the Most from FAQs:**
+- Read FAQs before the full summary for quick overview
+- Click citation links to verify important information
+- Use FAQ questions to guide follow-up research
+- Compare FAQ answers with Chat responses for consistency
+- Reference FAQs when sharing research insights
+</Tip>
+
+## Limitations
+
+<Warning>
+- Fixed at **10 questions** per notebook
+- Cannot customize question topics
+- Answers limited to research content
+- No follow-up or conversation (use Chat for that)
+- Generated once during processing (not updated)
+</Warning>
+
+## Comparison with Interactive Q&A
+
+| Feature | FAQs | Interactive Q&A |
+|---------|------|----------------|
+| **Generation** | Automatic | On-demand |
+| **Questions** | Pre-generated (10) | Unlimited custom |
+| **Context** | Full research | Last 10 messages |
+| **Speed** | Instant (pre-made) | ~5-10 seconds |
+| **Citations** | Built-in | Included |
+| **Use Case** | Quick reference | Specific queries |
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Interactive Q&A" icon="messages" href="/features/interactive-qa">
+    Ask custom questions about your research
+  </Card>
+  
+  <Card title="AI Summaries" icon="file-lines" href="/features/ai-summaries">
+    Read comprehensive research summary
+  </Card>
+  
+  <Card title="Audio Overviews" icon="volume" href="/features/audio-overviews">
+    Listen to podcast-style summary
+  </Card>
+</CardGroup>

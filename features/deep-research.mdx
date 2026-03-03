@@ -1,0 +1,255 @@
+---
+title: 'Deep Research with AI Agents'
+description: 'Automated deep research powered by multi-agent CrewAI workflows'
+icon: 'magnifying-glass-chart'
+---
+
+## Overview
+
+DecipherIt's deep research feature uses sophisticated AI agent crews to conduct comprehensive research on any topic. The system automatically searches the web, collects relevant sources, and synthesizes information into detailed research reports.
+
+<Info>
+Deep research is powered by CrewAI's multi-agent orchestration framework with specialized agents for planning, web scraping, research analysis, and content creation.
+</Info>
+
+## How It Works
+
+The deep research workflow involves multiple AI agents working together:
+
+<Steps>
+  <Step title="Planning Phase">
+    The Web Scraping Planner agent generates 3 unique search queries optimized for discovering diverse, high-quality sources about your topic.
+    
+    **Agent Configuration:**
+    - Analyzes the research topic
+    - Creates targeted search queries
+    - Optimizes for source diversity
+  </Step>
+
+  <Step title="Link Collection">
+    The Web Scraping Link Collector agent executes search queries using the Bright Data search engine tool and collects the 10 most relevant links per query.
+    
+    **Selection Criteria:**
+    - Authority and credibility
+    - Content relevance
+    - Recency (when appropriate)
+    - Domain reputation
+  </Step>
+
+  <Step title="Content Extraction">
+    The Web Scraper agent uses the `scrape_as_markdown` tool to extract complete raw content from each collected URL.
+    
+    **Features:**
+    - Extracts ALL text content (no summarization)
+    - Converts to markdown format
+    - Preserves page structure
+    - Handles dynamic content
+  </Step>
+
+  <Step title="Research Analysis">
+    The Researcher agent synthesizes all scraped content into a comprehensive analysis.
+    
+    **Analysis Process:**
+    - Identifies key themes and patterns
+    - Cross-references information across sources
+    - Highlights supporting evidence
+    - Notes conflicting viewpoints
+    - Organizes findings logically
+  </Step>
+
+  <Step title="Content Creation">
+    The Content Writer agent transforms research into an engaging, informative blog post with proper citations.
+    
+    **Output Structure:**
+    - Compelling introduction
+    - Multiple thematic sections
+    - Supporting quotes and citations
+    - Comprehensive conclusion
+    - Complete references list
+  </Step>
+</Steps>
+
+## Starting a Deep Research
+
+<Tabs>
+  <Tab title="From Dashboard">
+    1. Click **New Notebook** button
+    2. Select the **Topic** tab
+    3. Enter your research topic (e.g., "Climate change impacts on marine ecosystems")
+    4. Click **Decipher It**
+    
+    <Note>
+    Topics must be between 3-200 characters for optimal research quality.
+    </Note>
+  </Tab>
+  
+  <Tab title="Topic Requirements">
+    Your research topic should be:
+    - **Specific enough** for focused research
+    - **Broad enough** to find multiple sources
+    - **Clear and descriptive** for accurate search queries
+    
+    **Good Examples:**
+    - "Impact of remote work on employee productivity"
+    - "Latest developments in quantum computing"
+    - "Best practices for microservices architecture"
+    
+    **Poor Examples:**
+    - "Technology" (too broad)
+    - "AI" (too vague)
+    - Single word topics
+  </Tab>
+</Tabs>
+
+## Technical Implementation
+
+### Agent Architecture
+
+The deep research system uses specialized CrewAI agents:
+
+```python
+# Planning Crew - Generates search strategy
+web_scraping_planner = Agent(
+    role="Strategic Research Planner",
+    goal="Generate optimal search queries",
+    llm=llm,
+    output_pydantic=WebScrapingPlannerTaskResult
+)
+
+# Link Collection - Executed in parallel for all queries
+web_scraping_link_collector = Agent(
+    role="Web Research Specialist",
+    goal="Collect high-quality relevant sources",
+    tools=[search_engine_tool],
+    llm=llm,
+    output_pydantic=WebScrapingLinkCollectorTaskResult
+)
+
+# Content Extraction - Parallel scraping of all URLs
+web_scraper = Agent(
+    role="Content Extraction Specialist",
+    goal="Extract complete content from URLs",
+    tools=[scrape_as_markdown_tool],
+    llm=llm,
+    max_iter=50
+)
+```
+
+**Implementation Details:**
+- Location: `backend/agents/topic_research_agent.py:19-265`
+- Uses Bright Data MCP adapter for web scraping
+- Parallel execution with `asyncio.gather()` for performance
+- Rate limiting: 20 requests per minute per crew
+
+### Parallel Processing
+
+The system uses async parallel processing for optimal performance:
+
+```python
+# Execute all link collection tasks in parallel
+link_collector_tasks = [
+    web_scraping_link_collector_crew.kickoff_async(inputs={
+        "topic": topic,
+        "search_query": query,
+        "current_time": current_time,
+    })
+    for query in search_queries
+]
+link_collector_results = await asyncio.gather(*link_collector_tasks)
+
+# Execute all web scraping tasks in parallel
+web_scraping_tasks = [
+    web_scraping_crew.kickoff_async(inputs={
+        "topic": topic,
+        "url": link.url,
+        "current_time": current_time,
+    })
+    for link in links
+]
+web_scraping_results = await asyncio.gather(*web_scraping_tasks)
+```
+
+**Source:** `backend/agents/topic_research_agent.py:189-229`
+
+## Research Output
+
+After processing completes, you'll receive:
+
+<CardGroup cols={2}>
+  <Card title="Comprehensive Summary" icon="book-open">
+    A well-structured blog post covering all major findings with proper citations and source attribution.
+  </Card>
+  
+  <Card title="Source Links" icon="link">
+    All collected URLs with page titles for reference and further reading.
+  </Card>
+  
+  <Card title="Automated FAQs" icon="circle-question">
+    10 frequently asked questions with detailed answers generated from the research.
+  </Card>
+  
+  <Card title="Raw Data" icon="database">
+    Complete scraped content stored for vector search and interactive Q&A.
+  </Card>
+</CardGroup>
+
+## Processing Status
+
+The research process typically takes 2-5 minutes. You'll see these statuses:
+
+| Status | Description |
+|--------|-------------|
+| **In Queue** | Your notebook is queued for processing |
+| **In Progress** | AI agents are actively researching |
+| **Processed** | Research complete, results available |
+| **Error** | Processing failed, retry available |
+
+<Tip>
+The notebook page automatically polls for updates every 5 seconds, so you don't need to refresh the page.
+</Tip>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Optimize Topic Formulation">
+    - Be specific about the aspect you want to research
+    - Include relevant keywords
+    - Avoid overly technical jargon
+    - Frame as a research question or topic statement
+  </Accordion>
+  
+  <Accordion title="Understanding Results">
+    - Review the source links to verify quality
+    - Check citations in the summary
+    - Use FAQs for quick insights
+    - Ask follow-up questions in the Chat tab
+  </Accordion>
+  
+  <Accordion title="When to Retry">
+    If research fails or results are unsatisfactory:
+    - Click the **Try Again** button
+    - The system will re-run the entire research workflow
+    - Previous results are replaced with new findings
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+<Warning>
+- Maximum 3 search queries are generated per topic
+- Up to 10 links collected per search query
+- Content extraction limited to publicly accessible pages
+- Processing time varies based on source complexity (2-5 minutes typical)
+</Warning>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Interactive Q&A" icon="messages" href="/features/interactive-qa">
+    Ask questions about your research with vector-powered search
+  </Card>
+  
+  <Card title="FAQ Generation" icon="circle-question" href="/features/faq-generation">
+    Auto-generated FAQs from research findings
+  </Card>
+</CardGroup>

@@ -1,0 +1,466 @@
+---
+title: 'Interactive Q&A with Vector Search'
+description: 'Ask questions about your research with AI-powered semantic search'
+icon: 'messages'
+---
+
+## Overview
+
+The Interactive Q&A feature lets you have natural conversations with your research notebook. Powered by vector search and the Decipher AI agent, you can ask specific questions and get accurate answers with source citations.
+
+<Info>
+Q&A uses Qdrant vector database with OpenAI embeddings for semantic search, ensuring relevant context is retrieved even when exact keywords don't match.
+</Info>
+
+## How It Works
+
+<Steps>
+  <Step title="Content Indexing">
+    When your notebook is processed, all content is automatically chunked and embedded.
+    
+    **Indexing Process:**
+    - Content split into 512-token chunks with 50-token overlap
+    - Each chunk embedded using OpenAI `text-embedding-3-small`
+    - Embeddings stored in Qdrant vector database
+    - Metadata preserved (URLs, page titles, source types)
+    
+    **Implementation:** `backend/services/qdrant_service.py:114-206`
+  </Step>
+
+  <Step title="Query Processing">
+    When you ask a question, the system intelligently rewrites it for better search results.
+    
+    **Context-Aware Rewriting:**
+    - Analyzes last 10 messages for conversation context
+    - Rewrites question to include relevant context
+    - Focuses on key concepts and terminology
+    - Optimizes for vector similarity matching
+    
+    **Implementation:** `backend/agents/chat_agent.py:88-105`
+  </Step>
+
+  <Step title="Vector Search">
+    Your question is embedded and matched against stored content chunks.
+    
+    **Search Process:**
+    - Question embedded using same model (text-embedding-3-small)
+    - Cosine similarity search in Qdrant
+    - Top 5 most relevant chunks retrieved
+    - Filtered by notebook ID for isolation
+    
+    **Implementation:** `backend/services/qdrant_service.py:208-267`
+  </Step>
+
+  <Step title="Answer Generation">
+    The Decipher agent generates a contextual answer using retrieved chunks.
+    
+    **Agent Capabilities:**
+    - Analyzes question in context of conversation history
+    - Synthesizes information from relevant sources
+    - Provides markdown-formatted answers
+    - Includes source citations automatically
+    
+    **Implementation:** `backend/agents/chat_agent.py:27-77`
+  </Step>
+</Steps>
+
+## Using the Chat Interface
+
+<Tabs>
+  <Tab title="Starting a Conversation">
+    1. Navigate to your processed notebook
+    2. Click the **Decipher with Chat** tab
+    3. Type your question in the input field
+    4. Press Enter or click Send
+    
+    <Note>
+    The chat interface automatically focuses the input field when you open the tab for quick access.
+    </Note>
+    
+    **UI Implementation:** `client/components/notebook/notebook-polling.tsx:76-176`
+  </Tab>
+  
+  <Tab title="Asking Effective Questions">
+    **Good Questions:**
+    - "What are the main findings about climate change impacts?"
+    - "How does remote work affect productivity according to the research?"
+    - "What evidence supports the conclusion about quantum computing?"
+    
+    **Why They Work:**
+    - Specific and focused
+    - Reference research topics
+    - Clear intent
+    
+    **Less Effective:**
+    - Single word queries ("productivity")
+    - Overly broad ("Tell me everything")
+    - Off-topic questions
+  </Tab>
+  
+  <Tab title="Conversation Context">
+    The system maintains conversation history:
+    
+    **Context Features:**
+    - Last 10 messages used for context
+    - Follow-up questions understood
+    - Pronouns and references resolved
+    - Continuity across exchanges
+    
+    **Example Conversation:**
+    ```
+    You: What are the benefits of microservices?
+    Decipher: [Detailed answer with sources]
+    
+    You: What are the challenges?
+    Decipher: [Understands "challenges" refers to microservices]
+    
+    You: How do they compare to monoliths?
+    Decipher: [Maintains context of architecture discussion]
+    ```
+  </Tab>
+</Tabs>
+
+## Chat Interface Features
+
+### Message Display
+
+<CardGroup cols={2}>
+  <Card title="User Messages" icon="user">
+    - Right-aligned with primary color background
+    - Plain text display
+    - Clear visual distinction
+  </Card>
+  
+  <Card title="Decipher Responses" icon="robot">
+    - Left-aligned with muted background
+    - Rich markdown rendering
+    - Source citations formatted as links
+    - Code syntax highlighting
+  </Card>
+</CardGroup>
+
+### Markdown Support
+
+Decipher's responses support full markdown:
+
+```markdown
+**Bold text** for emphasis
+*Italic text* for subtle emphasis
+`Code snippets` for technical terms
+
+- Bullet points for lists
+- Organized information
+
+## Headings for structure
+
+> Block quotes for citations
+
+[Links to sources](https://example.com)
+```
+
+**Implementation:** `client/components/notebook/notebook-polling.tsx:58-69`
+
+### Auto-Scroll Behavior
+
+The chat automatically scrolls to show new messages:
+
+```typescript
+const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  if (messagesContainerRef.current) {
+    messagesContainerRef.current.scrollTop =
+      messagesContainerRef.current.scrollHeight;
+  }
+}, [messages, isLoading]);
+```
+
+**Source:** `client/components/notebook/notebook-polling.tsx:99-107`
+
+## Technical Implementation
+
+### Vector Database Architecture
+
+**Qdrant Configuration:**
+```python
+class QdrantSourceStore:
+    def __init__(
+        self,
+        qdrant_url: str = "localhost",
+        collection_name: str = "sources",
+        embedding_model: str = "text-embedding-3-small",
+        chunk_size: int = 512,
+        chunk_overlap: int = 50,
+    ):
+        self.qdrant_client = AsyncQdrantClient(
+            url=qdrant_url,
+            api_key=qdrant_api_key,
+            prefer_grpc=True,
+        )
+        self.openai_client = AsyncOpenAI(api_key=openai_api_key)
+```
+
+**Source:** `backend/services/qdrant_service.py:10-52`
+
+### Text Chunking Strategy
+
+```python
+def _chunk_text(self, text: str) -> List[str]:
+    """Split text into chunks based on chunk size and overlap."""
+    tokens = text.split()
+    chunk_starts = range(0, len(tokens), self.chunk_size - self.chunk_overlap)
+    
+    chunks = [
+        " ".join(tokens[i:i + self.chunk_size])
+        for i in chunk_starts
+        if i + self.chunk_size <= len(tokens)
+    ]
+    
+    # Handle remaining tokens
+    if tokens[chunk_starts[-1]:]:
+        chunks.append(" ".join(tokens[chunk_starts[-1]:]))
+    
+    return chunks
+```
+
+**Parameters:**
+- Chunk size: 512 tokens
+- Chunk overlap: 50 tokens
+- Ensures context continuity across chunks
+
+**Source:** `backend/services/qdrant_service.py:114-142`
+
+### Semantic Search Implementation
+
+```python
+async def search(
+    self,
+    query: str,
+    notebook_id: Optional[str] = None,
+    limit: int = 5,
+) -> List[Dict[str, Any]]:
+    """Search for sources based on query and notebook ID."""
+    
+    # Get query embedding
+    query_embedding = await self._get_embedding(query)
+    
+    # Set up filter for notebook_id
+    filter_param = None
+    if notebook_id:
+        filter_param = rest.Filter(
+            must=[
+                rest.FieldCondition(
+                    key="notebook_id",
+                    match=rest.MatchValue(value=notebook_id),
+                )
+            ]
+        )
+    
+    # Search in Qdrant
+    search_result = await self.qdrant_client.search(
+        collection_name=self.collection_name,
+        query_vector=query_embedding,
+        limit=limit,
+        query_filter=filter_param,
+    )
+    
+    # Format and return results
+    return [
+        {
+            "id": scored_point.id,
+            "score": scored_point.score,
+            "content_chunk": scored_point.payload.get("content_chunk"),
+            "notebook_id": scored_point.payload.get("notebook_id"),
+            "url": scored_point.payload.get("url"),
+            "page_title": scored_point.payload.get("page_title"),
+        }
+        for scored_point in search_result
+    ]
+```
+
+**Source:** `backend/services/qdrant_service.py:208-267`
+
+### Decipher Agent Configuration
+
+```python
+decipher_agent = Agent(
+    role="Decipher",
+    goal="Analyze and decode the user's questions to provide precise answers based on the relevant sources",
+    backstory="""You're Decipher, an analytical assistant specialized in 
+                 breaking down complex queries and providing clear, accurate 
+                 responses drawn from available source materials. Created by 
+                 Amit Wani. You have expertise in "{topic}".""",
+    verbose=True,
+    llm=llm,
+)
+
+answer_question_task = Task(
+    description="""Answer the user's question based on the relevant sources 
+                   and previous chat context (if any). Do not include any other 
+                   text than the answer to the question.
+                   
+                   Chat History: {chat_history}
+                   User Question: {question}
+                   Relevant Sources: {relevant_sources}""",
+    expected_output="""A markdown-formatted response with answer. Add a 
+                       **Sources:** section at the end with source citations.""",
+    agent=decipher_agent,
+)
+```
+
+**Source:** `backend/agents/chat_agent.py:27-70`
+
+### Context-Aware Query Rewriting
+
+```python
+# Rewrite question based on chat history for better vector search
+search_query = messages[-1].content
+if chat_history:
+    search_query = llm.call(f"""
+    Given the following chat history and current question, rewrite the 
+    question to include relevant context that would help with searching 
+    a vector database. Focus on key concepts and terminology.
+    
+    Chat History:
+    ```
+    {chat_history}
+    ```
+    
+    Current Question:
+    ```
+    {messages[-1].content}
+    ```
+    
+    Rewrite the question in a way that captures the full context. 
+    Only output the rewritten question, nothing else.
+    """)
+
+relevant_sources = await get_relevant_sources(notebook_id, search_query)
+```
+
+**Source:** `backend/agents/chat_agent.py:88-107`
+
+## Answer Quality Features
+
+<CardGroup cols={2}>
+  <Card title="Source-Grounded" icon="anchor">
+    Answers are strictly based on your research sources, with citations provided for verification.
+  </Card>
+  
+  <Card title="Context-Aware" icon="brain">
+    Maintains conversation history to understand follow-up questions and references.
+  </Card>
+  
+  <Card title="Semantic Understanding" icon="magnifying-glass">
+    Finds relevant information even when exact keywords don't match, using vector similarity.
+  </Card>
+  
+  <Card title="Formatted Responses" icon="file-lines">
+    Rich markdown formatting makes answers easy to read and understand.
+  </Card>
+</CardGroup>
+
+## Source Citations
+
+Every answer includes a **Sources** section:
+
+```markdown
+**Sources:**
+- [Climate Research Paper](https://nature.com/climate-2024)
+- [IPCC Report](https://ipcc.ch/report-2024)
+- Provided Text
+```
+
+**Citation Format:**
+- URL sources: `[Page Title](url)`
+- Text sources: "Provided Text"
+- File sources: File name reference
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Clarifying Research Findings">
+    Ask specific questions to understand complex topics:
+    - "What methodology was used in the study?"
+    - "What were the limitations mentioned?"
+    - "How was the data collected?"
+  </Accordion>
+  
+  <Accordion title="Extracting Specific Information">
+    Find precise details without reading entire sources:
+    - "What statistics support this claim?"
+    - "When was this research published?"
+    - "Who are the key researchers in this field?"
+  </Accordion>
+  
+  <Accordion title="Comparing Perspectives">
+    Understand different viewpoints in your sources:
+    - "What are the different opinions on this topic?"
+    - "How do these two sources differ?"
+    - "What's the consensus on this issue?"
+  </Accordion>
+  
+  <Accordion title="Following Up on Summaries">
+    Dig deeper into summary content:
+    - "Tell me more about [topic from summary]"
+    - "What evidence supports this conclusion?"
+    - "Can you elaborate on [specific point]?"
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimizations
+
+<CardGroup cols={2}>
+  <Card title="Memoized Components" icon="bolt">
+    Chat messages are memoized to prevent unnecessary re-renders during conversations.
+  </Card>
+  
+  <Card title="Indexed Search" icon="database">
+    Qdrant payload index on notebook_id ensures fast filtering during search queries.
+  </Card>
+  
+  <Card title="Connection Pooling" icon="network-wired">
+    Async clients reuse connections for optimal performance across multiple queries.
+  </Card>
+  
+  <Card title="Efficient Chunking" icon="scissors">
+    Smart overlap strategy maintains context while minimizing storage and search overhead.
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Warning>
+- Answers limited to information in your research sources
+- Context window limited to last 10 messages
+- Vector search returns top 5 most relevant chunks
+- Response quality depends on source content quality
+- Cannot answer questions outside research scope
+</Warning>
+
+## Best Practices
+
+<Tip>
+**For Best Results:**
+- Ask specific, focused questions
+- Use natural language
+- Reference topics from your research
+- Build on previous questions
+- Review source citations
+</Tip>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="AI Summaries" icon="file-lines" href="/features/ai-summaries">
+    Comprehensive research summaries
+  </Card>
+  
+  <Card title="FAQ Generation" icon="circle-question" href="/features/faq-generation">
+    Pre-generated common questions
+  </Card>
+  
+  <Card title="Audio Overviews" icon="volume" href="/features/audio-overviews">
+    Listen to research summaries
+  </Card>
+</CardGroup>

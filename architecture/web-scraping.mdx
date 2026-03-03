@@ -1,0 +1,385 @@
+---
+title: 'Web Scraping System'
+description: 'Bright Data MCP Server integration and web scraping architecture'
+icon: 'globe'
+---
+
+## Bright Data MCP Server
+
+DecipherIt leverages the **[official Bright Data MCP Server](https://github.com/brightdata-com/brightdata-mcp)** - a powerful Model Context Protocol server that provides comprehensive web access capabilities.
+
+<Info>
+  The Bright Data MCP Server enables real-time web access, bypasses geo-restrictions, and overcomes bot detection - essential for comprehensive research.
+</Info>
+
+## Core Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Real-time Web Access" icon="clock">
+    Access up-to-date information directly from the web
+  </Card>
+  <Card title="Bypass Geo-restrictions" icon="globe">
+    Access content regardless of location constraints
+  </Card>
+  <Card title="Web Unlocker Technology" icon="unlock">
+    Navigate websites with advanced bot detection
+  </Card>
+  <Card title="Seamless Integration" icon="plug">
+    Works with all MCP-compatible AI assistants
+  </Card>
+</CardGroup>
+
+## MCP Server Setup
+
+DecipherIt configures the Bright Data MCP Server using the `StdioServerParameters`:
+
+```python backend/agents/topic_research_agent.py
+from mcp import StdioServerParameters
+from crewai_tools import MCPServerAdapter
+import os
+
+server_params = StdioServerParameters(
+    command="pnpm",
+    args=["dlx", "@brightdata/mcp"],
+    env={
+        "API_TOKEN": os.environ["BRIGHT_DATA_API_TOKEN"],
+        "BROWSER_AUTH": os.environ["BRIGHT_DATA_BROWSER_AUTH"]
+    },
+)
+```
+
+<Note>
+  The MCP server is launched dynamically using `pnpm dlx` to ensure the latest version is always used.
+</Note>
+
+## Available Tools
+
+The Bright Data MCP Server provides two primary tools used by DecipherIt:
+
+### 1. Search Engine Tool
+
+Used by the Link Collector agent to discover relevant sources:
+
+```python backend/agents/topic_research_agent.py
+# Filter tools for link collection
+web_scraping_link_collector_tools = [
+    tool for tool in tools if tool.name in ["search_engine"]
+]
+
+# Create Link Collector agent with search tool
+web_scraping_link_collector = Agent(
+    role=AGENT_CONFIGS["web_scraping_link_collector"]["role"],
+    goal=AGENT_CONFIGS["web_scraping_link_collector"]["goal"],
+    backstory=AGENT_CONFIGS["web_scraping_link_collector"]["backstory"],
+    verbose=True,
+    tools=web_scraping_link_collector_tools,
+    llm=llm,
+)
+
+# Task configuration for link collection
+link_collector_task = Task(
+    description="""Using the search query - \"{search_query}\" provided, 
+    collect relevant links using the search_engine tool.
+    
+    Follow these steps precisely:
+    1. Use the search_engine tool with parameters:
+       - engine: \"google\"
+       - query: the provided search query - \"{search_query}\"
+    2. From the search results:
+       - Review and analyze each result's relevance
+       - Select 10 of the most relevant and authoritative links
+       - Focus on high-quality sources
+    3. Format the output as a JSON object with links array
+    """,
+    expected_output="A JSON object containing array of relevant links",
+    agent=web_scraping_link_collector,
+    max_retries=5,
+    output_pydantic=WebScrapingLinkCollectorTaskResult
+)
+```
+
+### 2. Scrape as Markdown Tool
+
+Used by the Web Scraper agent to extract clean content:
+
+```python backend/agents/topic_research_agent.py
+# Filter tools for web scraping
+web_scraping_tools = [
+    tool for tool in tools if tool.name in ["scrape_as_markdown"]
+]
+
+# Create Web Scraper agent
+web_scraper = Agent(
+    role=AGENT_CONFIGS["web_scraper"]["role"],
+    goal=AGENT_CONFIGS["web_scraper"]["goal"],
+    backstory=AGENT_CONFIGS["web_scraper"]["backstory"],
+    verbose=True,
+    tools=web_scraping_tools,
+    llm=llm,
+    max_iter=50,
+)
+
+# Task configuration for web scraping
+web_scraping_task = Task(
+    description="""STRICTLY FOLLOW THESE INSTRUCTIONS TO EXTRACT RAW CONTENT:
+    
+    1. Extract the content:
+       - Use scrape_as_markdown to capture ALL raw text from {url}
+    2. Return the raw text as a string
+    
+    CRITICAL REQUIREMENTS:
+    - Extract and preserve ALL text exactly as it appears
+    - Do NOT summarize or modify any content
+    - Do NOT skip any text content
+    - Include complete URL and page title
+    - If page fails to load, return error status in output
+    
+    Current time: {current_time}""",
+    expected_output="Complete raw text content from the URL, no modifications",
+    agent=web_scraper,
+    max_retries=5
+)
+```
+
+<Warning>
+  The scraper is instructed to preserve ALL content without modification to ensure data integrity.
+</Warning>
+
+## Parallel Scraping Architecture
+
+DecipherIt executes multiple web scraping tasks in parallel for optimal performance:
+
+```python backend/agents/topic_research_agent.py
+import asyncio
+
+async def run_research_crew(topic: str):
+    with MCPServerAdapter(server_params) as tools:
+        # ... (agent setup)
+        
+        # Create parallel tasks for link collection
+        link_collector_tasks = []
+        for search_query in search_queries:
+            link_collector_tasks.append(
+                web_scraping_link_collector_crew.kickoff_async(
+                    inputs={
+                        "topic": topic,
+                        "search_query": search_query,
+                        "current_time": current_time,
+                    }
+                )
+            )
+        
+        # Execute all link collection tasks in parallel
+        link_collector_results = await asyncio.gather(*link_collector_tasks)
+        
+        # Process results and collect unique links
+        links = []
+        for result in link_collector_results:
+            result_links = result["links"]
+            for link in result_links:
+                if link.url not in [l.url for l in links]:
+                    links.append(link)
+        
+        logger.info(f"Unique Links Collected: {links}")
+        
+        # Create parallel tasks for web scraping
+        web_scraping_tasks = []
+        for link in links:
+            web_scraping_tasks.append(
+                web_scraping_crew.kickoff_async(
+                    inputs={
+                        "topic": topic,
+                        "url": link.url,
+                        "current_time": current_time,
+                    }
+                )
+            )
+        
+        # Execute all web scraping tasks in parallel
+        web_scraping_results = await asyncio.gather(*web_scraping_tasks)
+        
+        # Process results and collect scraped data
+        scraped_data = []
+        for link, result in zip(links, web_scraping_results):
+            scraped_data.append({
+                "url": link.url,
+                "page_title": link.title,
+                "content": result.raw
+            })
+        
+        return scraped_data
+```
+
+<Tabs>
+  <Tab title="Performance Benefits">
+    - Scrapes multiple URLs simultaneously
+    - Reduces total research time by 10x or more
+    - Efficient use of network resources
+    - Better handling of slow-loading pages
+  </Tab>
+  <Tab title="Implementation">
+    - Uses `asyncio.gather()` for parallel execution
+    - Each scraping task runs in its own coroutine
+    - Results are collected and processed together
+    - Error handling per task ensures resilience
+  </Tab>
+</Tabs>
+
+## Sources Research Implementation
+
+For user-provided sources, DecipherIt uses a simplified workflow:
+
+```python backend/agents/sources_research_agent.py
+from crewai import Agent, Crew, Task, Process
+from mcp import StdioServerParameters
+from crewai_tools import MCPServerAdapter
+
+server_params = StdioServerParameters(
+    command="pnpm",
+    args=["dlx", "@brightdata/mcp"],
+    env={
+        "API_TOKEN": os.environ["BRIGHT_DATA_API_TOKEN"],
+        "BROWSER_AUTH": os.environ["BRIGHT_DATA_BROWSER_AUTH"]
+    },
+)
+
+async def run_sources_research_crew(sources: List[ResearchSource]):
+    logger.info(f"Running sources research crew for {len(sources)} sources")
+    
+    with MCPServerAdapter(server_params) as tools:
+        web_scraping_tools = [
+            tool for tool in tools if tool.name in ["scrape_as_markdown"]
+        ]
+        
+        # Create web scraper agent
+        web_scraper = Agent(
+            role=SOURCES_RESEARCH_AGENT_CONFIGS["web_scraper"]["role"],
+            goal=SOURCES_RESEARCH_AGENT_CONFIGS["web_scraper"]["goal"],
+            backstory=SOURCES_RESEARCH_AGENT_CONFIGS["web_scraper"]["backstory"],
+            verbose=True,
+            tools=web_scraping_tools,
+            llm=llm,
+            max_iter=50,
+        )
+        
+        # Extract URL sources
+        links = [
+            WebLink(url=source.source_url, title=source.source_url)
+            for source in sources
+            if source.source_type == "URL"
+        ]
+        
+        # Create parallel web scraping tasks
+        web_scraping_tasks = [
+            web_scraping_crew.kickoff_async(
+                inputs={"url": link.url, "current_time": current_time}
+            )
+            for link in links
+        ]
+        
+        # Execute all scraping tasks in parallel
+        web_scraping_results = await asyncio.gather(*web_scraping_tasks)
+        
+        # Collect scraped data
+        scraped_data = [
+            {"url": link.url, "content": result.raw}
+            for link, result in zip(links, web_scraping_results)
+        ]
+        
+        # Process other source types (MANUAL, UPLOAD)
+        textual_content = ""
+        for source in sources:
+            if source.source_type == "MANUAL":
+                textual_content += f"\n---\n- {source.source_content}\n---\n"
+        
+        # Convert uploaded files to markdown
+        if any(source.source_type == "UPLOAD" for source in sources):
+            markdown_files = await markdown_converter.convert_urls_to_markdown(
+                [source.source_url for source in sources if source.source_type == "UPLOAD"]
+            )
+            file_data = [
+                {"file_name": url, "content": markdown_content}
+                for url, markdown_content in markdown_files.items()
+            ]
+        
+        return {
+            "scraped_data": scraped_data,
+            "textual_content": textual_content,
+            "file_data": file_data
+        }
+```
+
+<Info>
+  Sources research handles three types of inputs: URLs (scraped), manual text, and uploaded files (converted via MarkItDown).
+</Info>
+
+## Security & Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Data Validation" icon="shield-check">
+    All scraped content is validated before processing
+  </Card>
+  <Card title="Rate Limiting" icon="gauge">
+    Built-in protection with max_rpm configuration
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation">
+    Robust retry logic with max_retries per task
+  </Card>
+  <Card title="Content Filtering" icon="filter">
+    Structured extraction rather than raw HTML
+  </Card>
+</CardGroup>
+
+### Security Implementation
+
+```python
+# Always treat scraped content as untrusted
+# Use Pydantic models for validation
+class WebScrapingPlannerTaskResult(BaseModel):
+    search_queries: List[str]
+
+class WebScrapingLinkCollectorTaskResult(BaseModel):
+    links: List[WebLink]
+
+# Configure rate limits
+web_scraping_crew = Crew(
+    agents=[web_scraper],
+    tasks=[web_scraping_task],
+    verbose=True,
+    process=Process.sequential,
+    max_rpm=20  # Limit to 20 requests per minute
+)
+
+# Retry logic for resilience
+web_scraping_task = Task(
+    description="...",
+    expected_output="...",
+    agent=web_scraper,
+    max_retries=5  # Retry up to 5 times on failure
+)
+```
+
+## Environment Configuration
+
+Required environment variables for Bright Data integration:
+
+```bash .env
+# Bright Data MCP Server
+BRIGHT_DATA_API_TOKEN="your-bright-data-token"
+BRIGHT_DATA_BROWSER_AUTH="your-web-unlocker-zone"  # Optional: custom zone
+```
+
+<Note>
+  New Bright Data users receive free credits to get started. The API token can be found in your user settings.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Agents" icon="robot" href="/architecture/ai-agents">
+    Learn about the CrewAI multi-agent system
+  </Card>
+  <Card title="Vector Search" icon="magnifying-glass" href="/architecture/vector-search">
+    Understand Qdrant embeddings and search
+  </Card>
+</CardGroup>

@@ -1,0 +1,616 @@
+---
+title: 'Visual Mindmap Generation'
+description: 'AI-generated interactive mindmaps visualizing research structure'
+icon: 'diagram-project'
+---
+
+## Overview
+
+DecipherIt creates interactive visual mindmaps from your research content, helping you understand relationships, hierarchies, and structure at a glance. Using CrewAI agents and the react-mindmap-visualiser library, it transforms complex research into intuitive visual diagrams.
+
+<Info>
+Mindmaps are generated on-demand with adaptive depth (2-5 levels) based on content complexity.
+</Info>
+
+## How It Works
+
+<Steps>
+  <Step title="Content Retrieval">
+    All research content is fetched from the vector database.
+    
+    **Data Collection:**
+    - All chunks retrieved from Qdrant by notebook ID
+    - Content sorted by chunk index
+    - Assembled into complete research text
+    - Passed to mindmap generation crew
+    
+    **Implementation:** `backend/agents/mindmap_agent.py:144-161`
+  </Step>
+
+  <Step title="Content Analysis">
+    The Content Analyzer agent identifies hierarchical themes and relationships.
+    
+    **Analysis Process:**
+    - Determines appropriate depth (2-5 levels) based on complexity
+    - Identifies ONE main central topic
+    - Breaks down into primary categories (3-6)
+    - Finds secondary subtopics (2-5 per category)
+    - Extracts detailed aspects if warranted
+    - Creates clear parent-child relationships
+    
+    **Implementation:** `backend/agents/mindmap_agent.py:29-58`
+  </Step>
+
+  <Step title="Structure Creation">
+    The Mindmap Creator agent builds the hierarchical node structure.
+    
+    **Node Structure:**
+    - Root node with single main topic
+    - Unique IDs for all nodes ("root", "1", "2", etc.)
+    - Text labels (1-4 words each)
+    - Nested arrays for child nodes
+    - Empty arrays [] for leaf nodes
+    
+    **Implementation:** `backend/agents/mindmap_agent.py:60-133`
+  </Step>
+
+  <Step title="Visual Rendering">
+    The mindmap is rendered using react-mindmap-visualiser.
+    
+    **Rendering Features:**
+    - Color-coded nodes by level
+    - Expandable/collapsible branches
+    - Pan and zoom controls
+    - Responsive layout
+    - Interactive exploration
+    
+    **Implementation:** `client/components/notebook/visual-mindmap.tsx:21-108`
+  </Step>
+</Steps>
+
+## Generating Mindmaps
+
+<Tabs>
+  <Tab title="First Generation">
+    1. Navigate to your processed notebook
+    2. Click the **Mindmap** tab
+    3. Click **Generate Mindmap** button
+    4. Wait 1-3 minutes for processing
+    5. Interactive mindmap appears when ready
+    
+    <Note>
+    The page automatically polls for completion every 3 seconds.
+    </Note>
+  </Tab>
+  
+  <Tab title="Interacting with Mindmap">
+    Once generated, you can:
+    
+    **Navigation:**
+    - Click and drag to pan around
+    - Scroll or pinch to zoom in/out
+    - Click nodes to expand/collapse
+    - Explore different branches
+    
+    **Visual Features:**
+    - Color-coded levels (5 color schemes)
+    - Hierarchical layout
+    - Clear connections
+    - Readable labels
+  </Tab>
+  
+  <Tab title="Regeneration">
+    If generation fails or you want to retry:
+    
+    1. Click **Try Again** button
+    2. Previous mindmap cleared
+    3. New analysis performed
+    4. Updated mindmap replaces previous
+    
+    <Warning>
+    Each regeneration analyzes content fresh. Results may vary slightly based on AI interpretation.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Mindmap Structure
+
+### Adaptive Depth Levels
+
+Mindmaps automatically adapt to content complexity:
+
+<Tabs>
+  <Tab title="Simple Content (2-3 levels)">
+    **Example:** Brief article or single document
+    
+    ```
+    Main Topic (root)
+    ├─ Category A
+    │  ├─ Subtopic 1
+    │  └─ Subtopic 2
+    ├─ Category B
+    │  ├─ Subtopic 3
+    │  └─ Subtopic 4
+    └─ Category C
+       ├─ Subtopic 5
+       └─ Subtopic 6
+    ```
+    
+    **Characteristics:**
+    - Clear, focused topics
+    - Limited sub-themes
+    - Straightforward relationships
+  </Tab>
+  
+  <Tab title="Moderate Content (3-4 levels)">
+    **Example:** Multiple sources or comprehensive article
+    
+    ```
+    Main Research Topic (root)
+    ├─ Primary Category A
+    │  ├─ Subtopic 1
+    │  │  ├─ Detail A
+    │  │  └─ Detail B
+    │  └─ Subtopic 2
+    │     ├─ Detail C
+    │     └─ Detail D
+    ├─ Primary Category B
+    │  ├─ Subtopic 3
+    │  │  ├─ Detail E
+    │  │  └─ Detail F
+    │  └─ Subtopic 4
+    └─ Primary Category C
+    ```
+    
+    **Characteristics:**
+    - Multiple themes
+    - Detailed sub-topics
+    - Rich relationships
+  </Tab>
+  
+  <Tab title="Complex Content (4-5 levels)">
+    **Example:** Extensive research with multiple documents
+    
+    ```
+    Comprehensive Research Topic (root)
+    ├─ Major Theme A
+    │  ├─ Category 1
+    │  │  ├─ Subtopic A
+    │  │  │  ├─ Detail 1
+    │  │  │  └─ Detail 2
+    │  │  └─ Subtopic B
+    │  │     └─ Detail 3
+    │  └─ Category 2
+    ├─ Major Theme B
+    │  ├─ Category 3
+    │  │  ├─ Subtopic C
+    │  │  │  ├─ Detail 4
+    │  │  │  ├─ Detail 5
+    │  │  │  └─ Detail 6
+    │  │  └─ Subtopic D
+    │  └─ Category 4
+    └─ Major Theme C
+    ```
+    
+    **Characteristics:**
+    - Multiple major themes
+    - Deep hierarchies
+    - Complex relationships
+    - Rich detail levels
+  </Tab>
+</Tabs>
+
+## Technical Implementation
+
+### CrewAI Agent Configuration
+
+```python
+def get_mindmap_crew():
+    # Content Analyzer
+    content_analyzer = Agent(
+        name="Content Analyzer",
+        role="Research Content Analyst",
+        goal="Analyze research to identify main themes and hierarchical relationships up to 5 levels deep",
+        backstory="""You are an expert content analyst who excels at 
+                     breaking down complex research into logical hierarchical 
+                     structures and identifying key relationships between 
+                     concepts at multiple levels of detail.""",
+        llm=llm,
+        verbose=True
+    )
+    
+    # Mindmap Creator
+    mindmap_creator = Agent(
+        name="Mindmap Creator",
+        role="Mindmap Specialist",
+        goal="Create final mindmap structure as nested dictionary with proper hierarchical relationships",
+        backstory="""You are a mindmap specialist who transforms analyzed 
+                     content into well-organized nested dictionary formats 
+                     with clear hierarchical relationships and logical flow.""",
+        llm=llm,
+        verbose=True
+    )
+    
+    return Crew(
+        agents=[content_analyzer, mindmap_creator],
+        tasks=[analyze_content_task, create_mindmap_task],
+        process=Process.sequential,
+        verbose=True,
+    )
+```
+
+**Source:** `backend/agents/mindmap_agent.py:8-141`
+
+### Node Structure Format
+
+```python
+class SimpleMindmapStructure(BaseModel):
+    mindmap: Dict[str, Any]  # Nested node structure
+    title: str               # Mindmap title
+    description: str         # Brief description
+
+# Example node structure:
+{
+    "mindmap": {
+        "id": "root",
+        "text": "Main Research Topic",
+        "display": {"block": True},
+        "nodes": [
+            {
+                "id": "1",
+                "text": "Category A",
+                "nodes": [
+                    {
+                        "id": "2",
+                        "text": "Subtopic 1",
+                        "nodes": []
+                    },
+                    {
+                        "id": "3",
+                        "text": "Subtopic 2",
+                        "nodes": []
+                    }
+                ]
+            },
+            {
+                "id": "4",
+                "text": "Category B",
+                "nodes": []
+            }
+        ]
+    },
+    "title": "Research Topic Title",
+    "description": "Brief description"
+}
+```
+
+**Source:** `backend/models/mindmap_models.py`
+
+### Analysis Task Configuration
+
+```python
+analyze_content_task = Task(
+    description="""
+    Analyze the research content and identify hierarchical themes with 
+    appropriate depth (up to 5 levels):
+    
+    - Level 1: ONE main central topic/theme (the overarching subject)
+    - Level 2: Primary categories under the main topic (3-6 major categories)
+    - Level 3: Secondary subtopics under each category (2-5 per category)
+    - Level 4: Detailed aspects (if content warrants it, 2-4 per subtopic)
+    - Level 5: Specific details (only if highly detailed content, 1-3 per aspect)
+    
+    Determine the appropriate depth based on content complexity:
+    - Simple content: 2-3 levels
+    - Moderate content: 3-4 levels
+    - Complex content: 4-5 levels
+    
+    Create a hierarchical breakdown with:
+    - ONE main topic at the root level that encompasses the entire research
+    - Concise labels (1-4 words each)
+    - Logical grouping of related concepts under the main topic
+    - Appropriate depth based on content richness
+    - Clear parent-child relationships
+    """,
+    expected_output="""A hierarchical breakdown with appropriate depth 
+                       (2-5 levels) based on content complexity, with concise 
+                       labels and clear relationships.""",
+    agent=content_analyzer
+)
+```
+
+**Source:** `backend/agents/mindmap_agent.py:29-58`
+
+## Visual Rendering
+
+### React Component Implementation
+
+```typescript
+export function VisualMindmap({ mindmapData }: VisualMindmapProps) {
+  const treeData = useMemo(() => {
+    const getBlockStyleForLevel = (level: number): BlockNodeStyle => {
+      switch (level % 5) {
+        case 0: return "default";
+        case 1: return "info";
+        case 2: return "success";
+        case 3: return "warn";
+        case 4: return "danger";
+        default: return "default";
+      }
+    };
+    
+    const processTreeNode = (node: TreeNode, level: number = 0): TreeNode => {
+      return {
+        id: node.id || `node-${Math.random()}`,
+        text: node.text || "Unknown",
+        display: {
+          block: true,
+          blockStyle: getBlockStyleForLevel(level),
+        },
+        nodes: node.nodes?.map(childNode => 
+          processTreeNode(childNode, level + 1)
+        ) || [],
+      };
+    };
+    
+    return processTreeNode(mindmapData.mindmap as unknown as TreeNode);
+  }, [mindmapData]);
+  
+  return (
+    <div className="w-full h-[700px] bg-gradient-to-br from-slate-50 to-slate-100">
+      <Mindmap json={treeData} />
+    </div>
+  );
+}
+```
+
+**Source:** `client/components/notebook/visual-mindmap.tsx:21-108`
+
+### Color-Coded Levels
+
+Nodes are automatically color-coded by depth:
+
+<CardGroup cols={5}>
+  <Card title="Level 0" icon="circle">
+    **Default** - Root node (main topic)
+  </Card>
+  
+  <Card title="Level 1" icon="circle">
+    **Info** - Primary categories (blue)
+  </Card>
+  
+  <Card title="Level 2" icon="circle">
+    **Success** - Subtopics (green)
+  </Card>
+  
+  <Card title="Level 3" icon="circle">
+    **Warn** - Details (yellow)
+  </Card>
+  
+  <Card title="Level 4" icon="circle">
+    **Danger** - Specifics (red)
+  </Card>
+</CardGroup>
+
+## Status Management
+
+### Client-Side State
+
+```typescript
+const [mindmap, setMindmap] = useState<string | null>(
+  initialMindmap || null
+);
+const [isGenerating, setIsGenerating] = useState(false);
+
+// Status values:
+// - null: Not generated yet
+// - "IN_PROGRESS": Currently generating
+// - "ERROR": Generation failed
+// - JSON string: Mindmap data (success)
+```
+
+**Source:** `client/components/notebook/notebook-polling.tsx:220-223`
+
+### Polling Implementation
+
+```typescript
+useEffect(() => {
+  if (mindmap !== "IN_PROGRESS") return;
+  
+  const pollInterval = setInterval(async () => {
+    const response = await fetch(`/api/notebooks/${notebookId}`);
+    const notebook = await response.json();
+    const newMindmap = notebook.output?.mindmap;
+    
+    if (newMindmap && newMindmap !== "IN_PROGRESS") {
+      setMindmap(newMindmap);
+      
+      if (newMindmap === "ERROR") {
+        toast.error("Mindmap generation failed");
+      } else {
+        toast.success("Mindmap ready!");
+      }
+    }
+  }, 3000);
+  
+  return () => clearInterval(pollInterval);
+}, [mindmap, notebookId]);
+```
+
+**Source:** `client/components/notebook/notebook-polling.tsx:226-268`
+
+## Mindmap Quality Features
+
+<CardGroup cols={2}>
+  <Card title="Adaptive Complexity" icon="sliders">
+    Depth automatically adjusts to content complexity - simple topics get simpler maps.
+  </Card>
+  
+  <Card title="Concise Labels" icon="tag">
+    1-4 word labels keep the mindmap clean and readable at any zoom level.
+  </Card>
+  
+  <Card title="Logical Grouping" icon="object-group">
+    Related concepts naturally grouped under common parent nodes.
+  </Card>
+  
+  <Card title="Visual Hierarchy" icon="sitemap">
+    Color coding and spatial layout make hierarchy immediately apparent.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Understanding Structure">
+    Use mindmaps to:
+    - Quickly grasp research organization
+    - Identify main themes at a glance
+    - Understand topic relationships
+    - See content hierarchy visually
+  </Accordion>
+  
+  <Accordion title="Presentations">
+    Mindmaps help with:
+    - Creating presentation outlines
+    - Explaining complex topics visually
+    - Showing research breadth
+    - Organizing talking points
+  </Accordion>
+  
+  <Accordion title="Learning">
+    Visual learning through:
+    - Spatial understanding of topics
+    - Progressive detail exploration
+    - Pattern recognition
+    - Memory aids via visualization
+  </Accordion>
+  
+  <Accordion title="Research Planning">
+    Mindmaps reveal:
+    - Topic coverage gaps
+    - Areas needing deeper research
+    - Connection opportunities
+    - Content balance issues
+  </Accordion>
+</AccordionGroup>
+
+## Interactive Features
+
+<CardGroup cols={3}>
+  <Card title="Pan & Zoom" icon="magnifying-glass">
+    Click and drag to pan, scroll to zoom for exploring large mindmaps.
+  </Card>
+  
+  <Card title="Expand/Collapse" icon="folder-tree">
+    Click nodes to show or hide their children for focused exploration.
+  </Card>
+  
+  <Card title="Responsive Layout" icon="mobile">
+    Mindmap adapts to screen size for mobile and desktop viewing.
+  </Card>
+</CardGroup>
+
+## Performance Optimizations
+
+<CardGroup cols={2}>
+  <Card title="Memoized Processing" icon="bolt">
+    Tree data processing is memoized to prevent unnecessary recalculations.
+  </Card>
+  
+  <Card title="Efficient Rendering" icon="gauge-high">
+    react-mindmap-visualiser uses SVG for crisp, performant rendering at any scale.
+  </Card>
+  
+  <Card title="Progressive Loading" icon="spinner">
+    Polling updates UI progressively without blocking interactions.
+  </Card>
+  
+  <Card title="Smart Validation" icon="shield-check">
+    Pydantic models ensure valid structure before rendering attempts.
+  </Card>
+</CardGroup>
+
+## API Endpoint
+
+### Generate Mindmap
+
+```typescript
+POST /api/notebooks/[id]/mindmap
+
+// Response
+{
+  "message": "Mindmap generation started"
+}
+
+// Database updates to "IN_PROGRESS"
+// Backend processes asynchronously
+// Poll GET /api/notebooks/[id] for completion
+```
+
+**Implementation:** `client/app/api/notebooks/[id]/mindmap/route.ts`
+
+## Best Practices
+
+<Tip>
+**For Best Mindmaps:**
+- Generate after research is fully processed
+- Use zoom to explore different detail levels
+- Screenshot or export for external use
+- Compare with summary to understand organization
+- Use for identifying follow-up research areas
+</Tip>
+
+## Limitations
+
+<Warning>
+- **AI-Interpreted Structure**: Organization reflects AI's interpretation of themes
+- **Depth Variation**: Some branches may be deeper than others based on content
+- **Label Brevity**: 1-4 word limit may oversimplify complex concepts
+- **Generation Time**: 1-3 minutes typical, varies with content length
+- **Static Output**: Mindmap doesn't update when content changes
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Mindmap Too Simple">
+    If mindmap lacks detail:
+    - Content may be too brief for deep analysis
+    - Try adding more sources
+    - Ensure sources have substantial content
+    - Consider regenerating for different interpretation
+  </Accordion>
+  
+  <Accordion title="Mindmap Too Complex">
+    If mindmap is overwhelming:
+    - Use collapse feature to simplify view
+    - Focus on specific branches
+    - Zoom in to readable level
+    - Content may be very comprehensive (expected)
+  </Accordion>
+  
+  <Accordion title="Generation Failed">
+    If generation shows ERROR:
+    - Click "Try Again" to regenerate
+    - Check that research processed successfully
+    - Verify notebook has content
+    - Contact support if persists
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="AI Summaries" icon="file-lines" href="/features/ai-summaries">
+    Read detailed research summary
+  </Card>
+  
+  <Card title="FAQ Generation" icon="circle-question" href="/features/faq-generation">
+    Explore auto-generated questions
+  </Card>
+  
+  <Card title="Interactive Q&A" icon="messages" href="/features/interactive-qa">
+    Ask specific questions about topics
+  </Card>
+</CardGroup>

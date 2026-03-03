@@ -1,0 +1,243 @@
+---
+title: 'Architecture Overview'
+description: 'Technical architecture and tech stack of DecipherIt'
+icon: 'sitemap'
+---
+
+## System Architecture
+
+DecipherIt is built on a modern, scalable architecture that combines a Next.js frontend with a FastAPI backend, powered by advanced AI agents and vector search capabilities.
+
+![Architecture Diagram](https://github.com/user-attachments/assets/085c41aa-4cdc-400f-b6e0-af8cbce4c5a3)
+
+## Tech Stack
+
+### Frontend Technologies
+
+<CardGroup cols={2}>
+  <Card title="Next.js 15" icon="react">
+    React framework with App Router for server-side rendering and optimal performance
+  </Card>
+  <Card title="React 19" icon="atom">
+    Latest React with concurrent features and improved performance
+  </Card>
+  <Card title="TypeScript 5" icon="code">
+    Type-safe development with latest TypeScript features
+  </Card>
+  <Card title="Tailwind CSS 4" icon="palette">
+    Utility-first CSS framework for rapid UI development
+  </Card>
+</CardGroup>
+
+**Key Frontend Libraries:**
+- **Shadcn/ui** - Beautiful, accessible component library
+- **Radix UI** - Unstyled, accessible UI primitives
+- **Better Auth** - Modern authentication solution
+- **Prisma** - Type-safe database ORM
+- **react-mindmap-visualiser** - Interactive mindmap visualization
+
+### Backend Technologies
+
+<CardGroup cols={2}>
+  <Card title="Python 3.12" icon="python">
+    Latest Python with performance improvements
+  </Card>
+  <Card title="FastAPI" icon="bolt">
+    High-performance async API framework
+  </Card>
+  <Card title="CrewAI" icon="robot">
+    Multi-agent AI framework for complex tasks
+  </Card>
+  <Card title="Qdrant" icon="database">
+    Vector database for semantic search
+  </Card>
+</CardGroup>
+
+**Core Backend Dependencies:**
+
+```toml backend/pyproject.toml
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.30.0",
+    "boto3>=1.38.0",
+    "crewai>=0.120.1",
+    "crewai-tools[mcp]>=0.45.0",
+    "fastapi>=0.115.12",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "markitdown[all]>=0.1.1",
+    "pydantic>=2.11.4",
+    "python-dotenv>=1.1.0",
+    "qdrant-client>=1.14.2",
+    "sqlalchemy>=2.0.41",
+    "uvicorn>=0.34.2",
+]
+```
+
+### AI & ML Services
+
+<Info>
+  DecipherIt leverages multiple AI services for different capabilities:
+</Info>
+
+- **Bright Data MCP Server** - Real-time web access, bypassing geo-restrictions
+- **Google Gemini (via OpenRouter)** - Content generation and analysis
+- **OpenAI Embeddings** - Text embeddings for semantic search
+- **LemonFox TTS** - High-quality text-to-speech synthesis
+- **MarkItDown** - Document conversion to Markdown
+
+### Infrastructure & Storage
+
+<CardGroup cols={3}>
+  <Card title="PostgreSQL" icon="database">
+    Primary relational database
+  </Card>
+  <Card title="Cloudflare R2" icon="cloud">
+    Object storage for files and audio
+  </Card>
+  <Card title="Docker" icon="docker">
+    Containerization for deployment
+  </Card>
+</CardGroup>
+
+## Application Structure
+
+### Backend Architecture
+
+The FastAPI backend is organized into modular components:
+
+```python backend/api.py
+from fastapi import FastAPI, status, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from services import initialize_db_pool, close_db_pool
+from routers.research import router as research_router
+from routers.chat import router as chat_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    logger.info("API server started")
+    await initialize_db_pool()
+    yield
+    # Shutdown logic
+    await close_db_pool()
+    logger.info("API server shutting down")
+
+# Create FastAPI app with lifespan
+app = FastAPI(
+    title="Decipher Research Agent",
+    description="API for running intelligent research agents",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(research_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
+```
+
+**Directory Structure:**
+
+```
+backend/
+├── agents/              # CrewAI agent implementations
+├── config/              # Configuration modules
+│   ├── llm.py          # LLM configuration
+│   ├── topic_research/ # Topic research configs
+│   └── sources_research/ # Sources research configs
+├── models/              # Pydantic models
+├── routers/             # FastAPI routers
+├── services/            # Business logic services
+│   ├── qdrant_service.py
+│   ├── db_service.py
+│   └── task_service.py
+├── api.py              # Main FastAPI application
+└── server.py           # Application entry point
+```
+
+### LLM Configuration
+
+DecipherIt uses Google Gemini 2.0 Flash via OpenRouter for fast, cost-effective AI operations:
+
+```python backend/config/llm.py
+from crewai import LLM
+import os
+
+llm = LLM(
+    model="openrouter/google/gemini-2.0-flash-001",
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.environ["OPENROUTER_API_KEY"],
+    temperature=0.01
+)
+```
+
+<Note>
+  The low temperature (0.01) ensures consistent, factual outputs for research tasks.
+</Note>
+
+## Data Flow
+
+1. **User Input** → Frontend collects research sources (URLs, documents, topics)
+2. **API Request** → Next.js sends data to FastAPI backend
+3. **Agent Processing** → CrewAI agents analyze and process content
+4. **Web Scraping** → Bright Data MCP extracts web content
+5. **Vector Storage** → Qdrant stores embeddings for semantic search
+6. **Content Generation** → AI agents create summaries, FAQs, mindmaps
+7. **Response** → Processed data returns to frontend for display
+
+## Asynchronous Processing
+
+DecipherIt leverages Python's async/await for high-performance concurrent operations:
+
+```python backend/server.py
+import os
+from dotenv import load_dotenv
+from loguru import logger
+
+# Load environment variables
+load_dotenv()
+
+# Disable CrewAI telemetry
+os.environ['CREWAI_DISABLE_TELEMETRY'] = 'true'
+
+# Configure logging
+from config.logging import setup_logging
+setup_logging(console_level="INFO", file_level="DEBUG")
+
+from api import app
+
+if __name__ == "__main__":
+    logger.info("Starting Decipher Research Agent API server")
+```
+
+<Info>
+  All major operations (web scraping, vector search, agent processing) run asynchronously for optimal performance.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Agents" icon="robot" href="/architecture/ai-agents">
+    Learn about the CrewAI multi-agent system
+  </Card>
+  <Card title="Web Scraping" icon="globe" href="/architecture/web-scraping">
+    Explore Bright Data MCP Server integration
+  </Card>
+  <Card title="Vector Search" icon="magnifying-glass" href="/architecture/vector-search">
+    Understand Qdrant and embeddings
+  </Card>
+</CardGroup>

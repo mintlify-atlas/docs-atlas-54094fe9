@@ -1,0 +1,340 @@
+---
+title: 'Multi-Source Research'
+description: 'Research from your own documents, URLs, and text content'
+icon: 'files'
+---
+
+## Overview
+
+Multi-source research lets you conduct deep analysis using your own content sources. Upload documents, paste URLs, or add text directly to create a comprehensive research notebook from materials you provide.
+
+<Info>
+Unlike topic-based research that searches the web, multi-source research analyzes only the content you provide, making it perfect for document analysis, literature reviews, and proprietary content research.
+</Info>
+
+## Supported Source Types
+
+DecipherIt accepts three types of sources:
+
+<CardGroup cols={3}>
+  <Card title="URLs" icon="link">
+    Web pages, articles, blog posts, documentation sites, and any publicly accessible URL.
+  </Card>
+  
+  <Card title="Documents" icon="file">
+    Upload PDFs, Word documents, PowerPoint presentations, Excel files, images, and more.
+  </Card>
+  
+  <Card title="Text Content" icon="text">
+    Paste any text content directly - notes, quotes, research findings, or custom content.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Source Collection">
+    Add up to 20 sources of any combination of URLs, documents, or text content.
+    
+    **Source Processing:**
+    - URLs are scraped using Bright Data's `scrape_as_markdown` tool
+    - Documents are converted to markdown using MarkItDown service
+    - Text content is used directly as provided
+  </Step>
+
+  <Step title="Content Extraction">
+    The Web Scraper agent extracts content from URLs in parallel, while MarkItDown converts uploaded files to text.
+    
+    **Parallel Processing:**
+    - All URLs scraped simultaneously
+    - Documents converted asynchronously
+    - Text content prepared for analysis
+  </Step>
+
+  <Step title="Research Analysis">
+    The Researcher agent synthesizes all sources (scraped URLs, converted files, and text) into a comprehensive analysis.
+    
+    **Cross-Source Analysis:**
+    - Identifies themes across all source types
+    - Cross-references insights between sources
+    - Integrates file content seamlessly
+    - Notes patterns and relationships
+  </Step>
+
+  <Step title="Content Generation">
+    The Content Writer creates an engaging summary with citations from all source types.
+    
+    **Citation Types:**
+    - URL citations: `[Source Title](url)`
+    - File citations: References to file names
+    - Text citations: Attributed to "Provided Text"
+  </Step>
+</Steps>
+
+## Adding Sources
+
+<Tabs>
+  <Tab title="URLs">
+    1. Open **New Notebook** dialog
+    2. Select **Sources** tab
+    3. Choose **URL** from the source type dropdown
+    4. Paste the URL (e.g., `https://example.com/article`)
+    5. Click **Add**
+    
+    <Note>
+    URLs must be publicly accessible. Authentication-protected or paywalled content may not be fully extracted.
+    </Note>
+    
+    **Supported URL Types:**
+    - Articles and blog posts
+    - Documentation sites
+    - Research papers (HTML format)
+    - News articles
+    - GitHub repositories (rendered pages)
+  </Tab>
+  
+  <Tab title="Documents">
+    1. Open **New Notebook** dialog
+    2. Select **Sources** tab
+    3. Choose **File** from the source type dropdown
+    4. Click to browse or drag & drop files
+    5. File automatically uploads and appears in source list
+    
+    **Supported Formats:**
+    - PDF (.pdf)
+    - Word (.docx, .doc)
+    - PowerPoint (.pptx, .ppt)
+    - Excel (.xlsx, .xls)
+    - Images (.jpg, .png) - OCR supported
+    - Text files (.txt, .md)
+    - And more via MarkItDown
+    
+    <Warning>
+    Maximum file size and upload limits apply based on your hosting configuration.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Text Content">
+    1. Open **New Notebook** dialog
+    2. Select **Sources** tab
+    3. Choose **Text** from the source type dropdown
+    4. Paste or type your content in the text area
+    5. Click **Add**
+    
+    **Use Cases:**
+    - Research notes
+    - Meeting transcripts
+    - Interview responses
+    - Quotes and excerpts
+    - Custom content
+    
+    <Tip>
+    Text sources can be any length. Longer text will be chunked automatically for vector search.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## Source Management
+
+### Adding Sources
+
+The **Create Notebook** dialog shows all added sources:
+
+- **Source counter**: Shows `X/20` sources added
+- **Visual indicators**: Color-coded badges (URL=blue, Text=green, File=purple)
+- **Preview**: Truncated display for long URLs or text
+- **Remove button**: Click X to remove any source
+
+### Source Limits
+
+<Info>
+You can add up to **20 sources** per notebook in any combination of URLs, documents, and text.
+</Info>
+
+**Implementation:**
+- Location: `client/components/notebook/create-notebook-dialog.tsx:58-131`
+- Sources stored with metadata (type, filename, file path)
+- Validation ensures source limit compliance
+
+## Technical Implementation
+
+### Source Processing Architecture
+
+```typescript
+// Source types
+type Source = {
+  type: "URL" | "TEXT" | "FILE";
+  value: string;           // URL or text content
+  filename?: string;       // For file uploads
+  filePath?: string;       // R2 storage path
+}
+
+// Backend processing
+const sourcesToSave = sources.map(source => {
+  if (source.type === "URL") {
+    return {
+      sourceType: "URL",
+      sourceUrl: source.value,
+    };
+  } else if (source.type === "FILE") {
+    return {
+      sourceType: "UPLOAD",
+      sourceUrl: source.value,
+      filePath: source.filePath,
+      filename: source.filename,
+    };
+  } else {
+    return {
+      sourceType: "MANUAL",
+      content: source.value,
+    };
+  }
+});
+```
+
+**Source:** `client/components/notebook/create-notebook-dialog.tsx:165-184`
+
+### Multi-Source Research Agent
+
+The sources research crew processes all source types:
+
+```python
+async def run_sources_research_crew(sources: List[ResearchSource]):
+    # Extract URLs from sources
+    links = [WebLink(url=source.source_url, title=source.source_url)
+             for source in sources
+             if source.source_type == "URL"]
+    
+    # Scrape all URLs in parallel
+    web_scraping_tasks = [
+        web_scraping_crew.kickoff_async(inputs={
+            "url": link.url,
+            "current_time": current_time,
+        })
+        for link in links
+    ]
+    web_scraping_results = await asyncio.gather(*web_scraping_tasks)
+    
+    # Get textual content from MANUAL sources
+    textual_content = ""
+    for source in sources:
+        if source.source_type == "MANUAL":
+            textual_content += f"\n---\n- {source.source_content}\n---\n"
+    
+    # Convert uploaded files to markdown
+    if any(source.source_type == "UPLOAD" for source in sources):
+        markdown_files = await markdown_converter.convert_urls_to_markdown(
+            [source.source_url for source in sources if source.source_type == "UPLOAD"]
+        )
+```
+
+**Source:** `backend/agents/sources_research_agent.py:21-196`
+
+### MarkItDown Integration
+
+Documents are converted to markdown for analysis:
+
+```python
+# Convert uploaded files to markdown
+markdown_files = await markdown_converter.convert_urls_to_markdown(
+    [source.source_url for source in sources if source.source_type == "UPLOAD"]
+)
+for url, markdown_content in markdown_files.items():
+    file_content += f"\n---\n- File: {url}\n---\n{markdown_content}\n---\n"
+    file_data.append({
+        "file_name": url,
+        "content": markdown_content
+    })
+```
+
+**Source:** `backend/agents/sources_research_agent.py:158-167`
+
+## Research Output
+
+Multi-source research generates:
+
+<CardGroup cols={2}>
+  <Card title="Integrated Summary" icon="book-open">
+    Comprehensive analysis synthesizing insights from all source types with proper attribution.
+  </Card>
+  
+  <Card title="Source References" icon="bookmark">
+    Complete list of all sources (URLs, file names, and text snippets) used in the analysis.
+  </Card>
+  
+  <Card title="Cross-Source FAQs" icon="circle-question">
+    10 questions answered using information from across all your sources.
+  </Card>
+  
+  <Card title="Vector Database" icon="database">
+    All content chunked and embedded for semantic search in the Chat feature.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Document Analysis">
+    Upload multiple documents (PDFs, Word docs) to:
+    - Compare findings across papers
+    - Synthesize research literature
+    - Extract key themes from reports
+    - Summarize meeting notes
+  </Accordion>
+  
+  <Accordion title="Web Research">
+    Combine URLs from multiple sources to:
+    - Compare different perspectives
+    - Analyze news coverage
+    - Research competitors
+    - Gather documentation
+  </Accordion>
+  
+  <Accordion title="Mixed Content Analysis">
+    Combine all source types to:
+    - Add context to documents with text notes
+    - Supplement URLs with your observations
+    - Create comprehensive research from diverse sources
+    - Build knowledge bases from multiple formats
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Source Quality" icon="star">
+    - Use authoritative, credible sources
+    - Ensure documents are text-based (not scanned images)
+    - Verify URLs are accessible
+    - Provide context with text sources
+  </Card>
+  
+  <Card title="Source Diversity" icon="shuffle">
+    - Mix source types for richer analysis
+    - Include primary and secondary sources
+    - Add your notes as text sources
+    - Use file uploads for proprietary content
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Warning>
+- **Maximum 20 sources** per notebook
+- URL extraction limited to publicly accessible content
+- File conversion quality depends on document format
+- Processing time increases with source count (typical: 2-5 minutes)
+- Scanned PDFs may require OCR (quality varies)
+</Warning>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Deep Research" icon="magnifying-glass-chart" href="/features/deep-research">
+    Automated web research on any topic
+  </Card>
+  
+  <Card title="Interactive Q&A" icon="messages" href="/features/interactive-qa">
+    Ask questions about your sources
+  </Card>
+</CardGroup>

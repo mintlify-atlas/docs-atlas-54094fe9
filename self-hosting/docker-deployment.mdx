@@ -1,0 +1,497 @@
+---
+title: 'Docker Deployment'
+description: 'Deploy DecipherIt using Docker and docker-compose'
+icon: 'docker'
+---
+
+## Overview
+
+DecipherIt provides Docker support for both development and production deployments. This guide covers containerized deployment using Docker Compose.
+
+## Prerequisites
+
+- Docker Engine 20.10 or higher
+- Docker Compose v2.0 or higher
+- At least 4GB of available RAM
+- 10GB of free disk space
+
+## Docker Architecture
+
+The DecipherIt Docker setup includes:
+
+- **Frontend Container**: Next.js application (Node.js 22)
+- **Backend Container**: FastAPI application (Python 3.12)
+- **PostgreSQL Container**: Database server (PostgreSQL 15)
+- **Qdrant Container**: Vector database for semantic search
+
+## Docker Compose Configuration
+
+Create a `docker-compose.yml` file in your project root:
+
+```yaml docker-compose.yml
+version: "3.8"
+
+services:
+  frontend:
+    build: ./client
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/decipher
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - BACKEND_API_URL=http://backend:8001
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+    depends_on:
+      - db
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/decipher
+      - BRIGHT_DATA_API_TOKEN=${BRIGHT_DATA_API_TOKEN}
+      - BRIGHT_DATA_BROWSER_AUTH=${BRIGHT_DATA_BROWSER_AUTH}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LEMONFOX_API_KEY=${LEMONFOX_API_KEY}
+      - QDRANT_API_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
+      - CLOUDFLARE_R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - LANGTRACE_API_KEY=${LANGTRACE_API_KEY}
+    depends_on:
+      - db
+      - qdrant
+    restart: unless-stopped
+    volumes:
+      - ./backend/logs:/app/logs
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=decipher
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  qdrant_data:
+```
+
+## Dockerfile Details
+
+### Frontend Dockerfile
+
+The frontend uses a multi-stage build for optimization:
+
+<CodeGroup>
+
+```dockerfile client/Dockerfile
+# syntax=docker.io/docker/dockerfile:1
+
+FROM node:22-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable pnpm && pnpm i --frozen-lockfile
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV NEXT_PUBLIC_BASE_URL=https://decipherit.xyz
+
+# Generate Prisma Client
+RUN corepack enable pnpm && pnpm prisma generate
+
+# Build the application
+RUN corepack enable pnpm && pnpm run build
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV NODE_OPTIONS="--no-warnings"
+
+CMD ["node", "--trace-warnings", "server.js"]
+```
+
+</CodeGroup>
+
+### Backend Dockerfile
+
+The backend uses Python 3.12 with uv for dependency management:
+
+<CodeGroup>
+
+```dockerfile backend/Dockerfile
+FROM python:3.12-slim-bookworm AS builder
+
+# Install uv
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies into the system Python
+RUN uv pip install --system -e .
+
+# Final image - ultra slim
+FROM python:3.12-slim-bookworm
+
+# Install runtime dependencies, Node.js, PNPM, PostgreSQL client, and FFmpeg
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl \
+    libpq-dev postgresql-client ffmpeg && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    npm install -g pnpm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    npm cache clean --force && \
+    pip install --no-cache-dir psycopg2-binary gunicorn
+
+# Copy Python packages from the builder stage
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+
+# Copy application code
+WORKDIR /app
+COPY app/ app/
+COPY agents/ agents/
+COPY config/ config/
+COPY models/ models/
+COPY routers/ routers/
+COPY services/ services/
+COPY api.py server.py ./
+
+# Create log directory with appropriate permissions
+RUN mkdir -p logs && chmod 777 logs
+
+EXPOSE 8001
+
+# Use gunicorn with uvicorn workers
+CMD ["gunicorn", "server:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8001", "--timeout", "0", "--keep-alive", "5"]
+```
+
+</CodeGroup>
+
+## Deployment Steps
+
+<Steps>
+  <Step title="Create Environment File">
+    Create a `.env` file in your project root with all required variables:
+
+    ```bash .env
+    # Authentication
+    BETTER_AUTH_SECRET=your-secure-random-string
+    BETTER_AUTH_URL=http://localhost:3000
+    NEXT_PUBLIC_BASE_URL=http://localhost:3000
+
+    # Cloudflare R2
+    R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
+    R2_ACCESS_KEY_ID=your-r2-access-key
+    R2_SECRET_ACCESS_KEY=your-r2-secret-key
+    R2_BUCKET_NAME=decipher-files
+    R2_PUBLIC_URL=https://files.yourdomain.com
+
+    # AI Services
+    BRIGHT_DATA_API_TOKEN=your-bright-data-token
+    BRIGHT_DATA_BROWSER_AUTH=your-bright-data-browser-auth
+    OPENROUTER_API_KEY=your-openrouter-api-key
+    OPENAI_API_KEY=your-openai-api-key
+    LEMONFOX_API_KEY=your-lemonfox-api-key
+
+    # Cloudflare
+    CLOUDFLARE_ACCOUNT_ID=your-cloudflare-account-id
+
+    # Optional
+    QDRANT_API_KEY=
+    LANGTRACE_API_KEY=
+    ```
+  </Step>
+
+  <Step title="Build the Containers">
+    Build all containers using Docker Compose:
+
+    ```bash
+    docker-compose build
+    ```
+
+    This will:
+    - Build the frontend Next.js application
+    - Build the backend FastAPI application
+    - Pull PostgreSQL and Qdrant images
+  </Step>
+
+  <Step title="Start the Services">
+    Start all services in detached mode:
+
+    ```bash
+    docker-compose up -d
+    ```
+
+    This starts:
+    - PostgreSQL on port 5432
+    - Qdrant on port 6333
+    - Backend API on port 8001
+    - Frontend on port 3000
+  </Step>
+
+  <Step title="Run Database Migrations">
+    Run Prisma migrations to set up the database schema:
+
+    ```bash
+    docker-compose exec frontend pnpm prisma migrate deploy
+    ```
+  </Step>
+
+  <Step title="Verify Deployment">
+    Check that all services are running:
+
+    ```bash
+    docker-compose ps
+    ```
+
+    All services should show status "Up".
+  </Step>
+</Steps>
+
+## Managing the Deployment
+
+### View Logs
+
+View logs from all services:
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f frontend
+docker-compose logs -f backend
+docker-compose logs -f db
+docker-compose logs -f qdrant
+```
+
+### Stop Services
+
+```bash
+# Stop all services
+docker-compose stop
+
+# Stop specific service
+docker-compose stop backend
+```
+
+### Restart Services
+
+```bash
+# Restart all services
+docker-compose restart
+
+# Restart specific service
+docker-compose restart backend
+```
+
+### Remove Containers
+
+```bash
+# Stop and remove containers (keeps volumes)
+docker-compose down
+
+# Stop and remove containers and volumes (WARNING: deletes data)
+docker-compose down -v
+```
+
+### Update the Application
+
+```bash
+# Pull latest code
+git pull
+
+# Rebuild and restart
+docker-compose up -d --build
+
+# Run migrations if needed
+docker-compose exec frontend pnpm prisma migrate deploy
+```
+
+## Production Optimization
+
+### Resource Limits
+
+Add resource limits to prevent containers from consuming too much memory:
+
+```yaml
+services:
+  backend:
+    # ... other config
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+```
+
+### Health Checks
+
+Add health checks for automatic recovery:
+
+```yaml
+services:
+  backend:
+    # ... other config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+### Logging Configuration
+
+Configure log rotation:
+
+```yaml
+services:
+  backend:
+    # ... other config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+### Use Docker Secrets
+
+For production, use Docker secrets instead of environment variables:
+
+```yaml
+secrets:
+  openai_api_key:
+    external: true
+
+services:
+  backend:
+    secrets:
+      - openai_api_key
+```
+
+## Troubleshooting
+
+### Container Fails to Start
+
+Check container logs:
+
+```bash
+docker-compose logs backend
+```
+
+### Database Connection Errors
+
+Verify database is ready:
+
+```bash
+docker-compose exec db pg_isready -U postgres
+```
+
+### Out of Memory
+
+Increase Docker memory limit in Docker Desktop settings or add resource limits to docker-compose.yml.
+
+### Port Conflicts
+
+Change port mappings if ports are already in use:
+
+```yaml
+ports:
+  - "3001:3000"  # Use port 3001 instead of 3000
+```
+
+## Backup and Restore
+
+### Backup PostgreSQL Database
+
+```bash
+docker-compose exec db pg_dump -U postgres decipher > backup.sql
+```
+
+### Restore PostgreSQL Database
+
+```bash
+docker-compose exec -T db psql -U postgres decipher < backup.sql
+```
+
+### Backup Qdrant Data
+
+```bash
+docker-compose exec qdrant curl -X POST http://localhost:6333/collections/backup
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="code" href="/self-hosting/environment-variables">
+    Complete environment variables reference
+  </Card>
+  <Card title="Configuration" icon="gear" href="/self-hosting/configuration">
+    Advanced configuration options
+  </Card>
+</CardGroup>

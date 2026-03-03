@@ -1,0 +1,426 @@
+---
+title: Cloudflare R2 Storage
+description: Configure Cloudflare R2 for file uploads and audio storage
+---
+
+DecipherIt uses Cloudflare R2 for object storage, providing cost-effective and performant storage for uploaded documents and generated audio files.
+
+## Overview
+
+Cloudflare R2 is used for:
+
+- **Document Uploads** - PDF, DOCX, PPTX, XLSX files uploaded by users
+- **Audio Files** - AI-generated podcast-style audio overviews
+- **Public Access** - Files served through custom domain with CDN
+
+## Prerequisites
+
+- Cloudflare account with R2 enabled
+- R2 bucket created
+- Custom domain configured (optional but recommended)
+
+## Environment Variables
+
+### Frontend Configuration
+
+Add to `client/.env.local`:
+
+```env client/.env.local
+R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET_NAME=decipher-files
+R2_PUBLIC_URL=https://files.decipherit.xyz
+```
+
+### Backend Configuration
+
+Add to `backend/.env`:
+
+```env backend/.env
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
+CLOUDFLARE_R2_ACCESS_KEY_ID=your_r2_access_key_id
+CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+```
+
+## Setup Guide
+
+<Steps>
+
+### Create R2 Bucket
+
+1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. Navigate to **R2 Object Storage**
+3. Click **Create bucket**
+4. Enter bucket name: `decipher-files`
+5. Choose location (automatic is recommended)
+6. Click **Create bucket**
+
+### Generate Access Keys
+
+1. In R2 dashboard, go to **Manage R2 API Tokens**
+2. Click **Create API token**
+3. Configure permissions:
+   - **Object Read & Write** on `decipher-files` bucket
+4. Click **Create API token**
+5. Copy the **Access Key ID** and **Secret Access Key**
+6. Add them to your environment variables
+
+### Get Account ID
+
+1. In Cloudflare dashboard, scroll to the bottom right
+2. Copy your **Account ID**
+3. Add it to your environment variables
+
+### Configure Public Access (Optional)
+
+1. In R2 bucket settings, go to **Settings**
+2. Under **Public Access**, click **Allow Access**
+3. Configure custom domain:
+   - Click **Connect Domain**
+   - Enter your domain: `files.decipherit.xyz`
+   - Follow DNS configuration steps
+4. Update `R2_PUBLIC_URL` environment variable with your custom domain
+
+</Steps>
+
+## Frontend Integration
+
+### R2 Client Setup
+
+The frontend uses AWS SDK S3 client for R2:
+
+```typescript client/lib/r2.ts
+import { S3Client } from "@aws-sdk/client-s3";
+
+// Cloudflare R2 configuration
+export const r2Client = new S3Client({
+  region: "auto", // R2 uses "auto" region
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+export const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME!;
+```
+
+### Supported File Types
+
+Documents that can be uploaded:
+
+```typescript client/lib/r2.ts
+export const SUPPORTED_FILE_TYPES = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+} as const;
+
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+```
+
+### File Upload Implementation
+
+```typescript client/lib/r2.ts
+// Generate unique file path
+export function generateR2FilePath(userId: string, originalFilename: string): string {
+  const timestamp = Date.now();
+  const randomId = Math.random().toString(36).substring(2, 8);
+  const cleanFilename = originalFilename.replace(/[^a-zA-Z0-9.-]/g, '_');
+  
+  return `uploads/${userId}/${timestamp}-${randomId}-${cleanFilename}`;
+}
+
+// Get public URL for file
+export function getR2PublicUrl(filePath: string): string {
+  return `${process.env.R2_PUBLIC_URL}/${filePath}`;
+}
+```
+
+### Upload API Route
+
+File upload handled by Next.js API route:
+
+```typescript client/app/api/upload/route.ts
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { r2Client, R2_BUCKET_NAME, generateR2FilePath } from "@/lib/r2";
+
+export async function POST(request: Request) {
+  const formData = await request.formData();
+  const file = formData.get("file") as File;
+  
+  // Generate file path
+  const filePath = generateR2FilePath(userId, file.name);
+  
+  // Upload to R2
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: filePath,
+      Body: Buffer.from(await file.arrayBuffer()),
+      ContentType: file.type,
+    })
+  );
+  
+  // Return public URL
+  return Response.json({
+    url: getR2PublicUrl(filePath),
+    filename: file.name
+  });
+}
+```
+
+## Backend Integration
+
+### R2 Service Setup
+
+The backend uses boto3 for R2 access:
+
+```python backend/services/r2_service.py
+import os
+import boto3
+from botocore.exceptions import ClientError
+import uuid
+
+class R2Service:
+    """Service for uploading files to Cloudflare R2 storage."""
+    
+    def __init__(self):
+        self.account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+        self.access_key_id = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID")
+        self.secret_access_key = os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
+        self.bucket_name = "decipher-files"
+        
+        # Configure R2 endpoint
+        self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
+        
+        # Initialize S3 client for R2
+        self.s3_client = boto3.client(
+            "s3",
+            endpoint_url=self.endpoint_url,
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+            region_name="auto"  # R2 uses 'auto' as region
+        )
+```
+
+### Audio File Upload
+
+Audio overviews are uploaded to R2:
+
+```python backend/services/r2_service.py
+async def upload_audio_file(
+    self,
+    audio_content: bytes,
+    notebook_id: str,
+    file_extension: str = "mp3"
+) -> str:
+    """Upload audio file to R2 bucket."""
+    
+    # Generate file key
+    random_id = str(uuid.uuid4())[:8]
+    file_key = f"audios/{notebook_id}_audio_overview_{random_id}.{file_extension}"
+    
+    # Upload file to R2
+    self.s3_client.put_object(
+        Bucket=self.bucket_name,
+        Key=file_key,
+        Body=audio_content,
+        ContentType=f"audio/{file_extension}",
+        ACL="public-read"  # Make file publicly accessible
+    )
+    
+    # Generate public URL
+    public_url = f"https://files.decipherit.xyz/{file_key}"
+    
+    return public_url
+```
+
+### Audio Overview Workflow
+
+Complete workflow for audio generation and storage:
+
+```python backend/services/audio_overview_service.py
+from .tts_service import tts_service
+from .r2_service import r2_service
+from .notebook_repository import notebook_repository
+
+class AudioOverviewService:
+    async def generate_complete_audio_overview(self, notebook_id: str):
+        # Step 1: Generate transcript using AI agent
+        transcript = await run_audio_overview_agent(notebook_id)
+        
+        # Step 2: Generate TTS audio from transcript
+        audio_content = await tts_service.generate_audio_from_transcript(
+            transcript, notebook_id
+        )
+        
+        # Step 3: Upload audio file to R2
+        audio_url = await r2_service.upload_audio_file(
+            audio_content, notebook_id
+        )
+        
+        # Step 4: Update database with audio URL
+        await notebook_repository.update_audio_overview_url(notebook_id, audio_url)
+        
+        return {
+            "transcript": transcript,
+            "audio_url": audio_url,
+            "status": "completed"
+        }
+```
+
+## File Organization
+
+### Folder Structure
+
+Files are organized by type and user:
+
+```
+decipher-files/
+├── uploads/
+│   └── {userId}/
+│       └── {timestamp}-{randomId}-{filename}
+└── audios/
+    └── {notebookId}_audio_overview_{randomId}.mp3
+```
+
+### Naming Conventions
+
+<CodeGroup>
+
+```typescript User Uploads
+// Format: uploads/{userId}/{timestamp}-{randomId}-{cleanFilename}
+const filePath = generateR2FilePath("user123", "Research Paper.pdf");
+// Result: "uploads/user123/1234567890-abc123-Research_Paper.pdf"
+```
+
+```python Audio Files
+# Format: audios/{notebookId}_audio_overview_{randomId}.mp3
+random_id = str(uuid.uuid4())[:8]
+file_key = f"audios/{notebook_id}_audio_overview_{random_id}.mp3"
+# Result: "audios/notebook123_audio_overview_a1b2c3d4.mp3"
+```
+
+</CodeGroup>
+
+## Security Best Practices
+
+<Warning>
+**Never commit credentials to version control**
+
+Always use environment variables for R2 credentials.
+</Warning>
+
+### Access Control
+
+- Use **scoped API tokens** with minimum required permissions
+- Separate tokens for frontend (upload) and backend (upload + delete)
+- Rotate tokens regularly
+
+### File Validation
+
+Validate files before upload:
+
+```typescript client/lib/r2.ts
+import { SUPPORTED_FILE_TYPES, MAX_FILE_SIZE } from "@/lib/r2";
+
+// Validate file type
+if (!SUPPORTED_FILE_TYPES[file.type]) {
+  throw new Error("Unsupported file type");
+}
+
+// Validate file size
+if (file.size > MAX_FILE_SIZE) {
+  throw new Error("File too large (max 10MB)");
+}
+```
+
+### Public Access
+
+Files are made publicly accessible for serving:
+
+```python backend/services/r2_service.py
+self.s3_client.put_object(
+    Bucket=self.bucket_name,
+    Key=file_key,
+    Body=audio_content,
+    ContentType=f"audio/{file_extension}",
+    ACL="public-read"  # Public read access
+)
+```
+
+<Note>
+**CDN Caching**: Public files are automatically cached by Cloudflare's CDN for fast global delivery.
+</Note>
+
+## Cost Optimization
+
+### R2 Pricing
+
+Cloudflare R2 offers:
+
+- **No egress fees** (unlike AWS S3)
+- **Low storage costs**: $0.015/GB per month
+- **Free tier**: 10 GB storage, 1 million Class A operations/month
+
+### Best Practices
+
+1. **Enable custom domain** for better caching
+2. **Set appropriate cache headers** for static content
+3. **Delete old files** periodically (implement lifecycle policies)
+4. **Use compression** for uploaded documents when possible
+
+## Troubleshooting
+
+### Upload Failures
+
+If uploads fail:
+
+1. Verify R2 credentials are correct
+2. Check bucket name matches configuration
+3. Ensure API token has write permissions
+4. Check file size is under limit (10MB)
+
+### Access Denied Errors
+
+```python
+botocore.exceptions.ClientError: An error occurred (AccessDenied)
+```
+
+Fix by:
+
+1. Verifying API token permissions
+2. Checking bucket policy allows public reads
+3. Ensuring account ID is correct
+
+### CORS Issues
+
+If frontend uploads fail with CORS errors:
+
+1. In R2 bucket settings, configure CORS:
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://decipherit.xyz"],
+       "AllowedMethods": ["GET", "PUT", "POST"],
+       "AllowedHeaders": ["*"]
+     }
+   ]
+   ```
+
+## Monitoring
+
+Monitor R2 usage:
+
+1. Cloudflare dashboard shows storage usage
+2. Track API operations count
+3. Monitor egress (should be minimal with CDN)
+
+## Next Steps
+
+- Learn about [Bright Data Integration](/integrations/bright-data)
+- Configure [AI Models](/integrations/ai-models)
+- Explore [API Reference](/api/introduction)

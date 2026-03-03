@@ -1,0 +1,449 @@
+---
+title: AI Model Integrations
+description: Configure OpenAI, Gemini, and LemonFox AI models for embeddings, content generation, and text-to-speech
+---
+
+DecipherIt integrates multiple AI services for different capabilities: OpenAI for embeddings, Google Gemini for content generation, and LemonFox for text-to-speech.
+
+## Overview
+
+DecipherIt uses a multi-model approach:
+
+- **OpenAI** - Text embeddings for semantic search (via Qdrant)
+- **Google Gemini** - Large language model for content generation (via OpenRouter)
+- **LemonFox AI** - High-quality text-to-speech synthesis
+
+## Environment Variables
+
+### Backend Configuration
+
+Add these to your backend `.env` file:
+
+```env backend/.env
+# OpenAI API key for embeddings
+OPENAI_API_KEY=your_openai_api_key
+
+# OpenRouter API key for Gemini access
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# LemonFox AI API key for TTS
+LEMONFOX_API_KEY=your_lemonfox_api_key
+```
+
+## OpenAI Integration
+
+### Purpose
+
+OpenAI is used exclusively for generating text embeddings that power semantic search through Qdrant vector database.
+
+### Configuration
+
+<Steps>
+
+### Get Your API Key
+
+1. Sign up at [platform.openai.com](https://platform.openai.com)
+2. Navigate to API Keys section
+3. Create a new API key
+4. Add it to your `.env` file as `OPENAI_API_KEY`
+
+### Embedding Model
+
+DecipherIt uses `text-embedding-3-small` for optimal cost and performance:
+
+```python backend/services/qdrant_service.py
+class QdrantSourceStore:
+    def __init__(
+        self,
+        embedding_model: str = "text-embedding-3-small",
+        openai_api_key: Optional[str] = None,
+    ):
+        # Initialize OpenAI client
+        self.openai_client = AsyncOpenAI(api_key=openai_api_key)
+        self.embedding_model = embedding_model
+```
+
+### Generate Embeddings
+
+Embeddings are created automatically when content is added:
+
+```python backend/services/qdrant_service.py
+async def _get_embedding(self, text: str) -> List[float]:
+    """Get embedding for text using OpenAI."""
+    response = await self.openai_client.embeddings.create(
+        input=text,
+        model=self.embedding_model,
+    )
+    return response.data[0].embedding
+```
+
+</Steps>
+
+### Usage in Semantic Search
+
+Embeddings enable intelligent Q&A capabilities:
+
+```python backend/agents/chat_agent.py
+async def get_relevant_sources(notebook_id: str, query: str):
+    # Query is automatically embedded and searched
+    results = await qdrant_service.search(query, notebook_id)
+    
+    output = ""
+    for result in results:
+        source_info = "Source: Provided Text"
+        if result.get('url'):
+            page_title = result.get('page_title', '')
+            source_info = f"Source: {page_title} ({result['url']})"
+        output += f"Content: {result['content_chunk']}\n{source_info}\n---\n"
+    
+    return output
+```
+
+### Text Chunking Strategy
+
+Content is chunked for optimal retrieval:
+
+```python backend/services/qdrant_service.py
+class QdrantSourceStore:
+    def __init__(
+        self,
+        chunk_size: int = 512,
+        chunk_overlap: int = 50,
+    ):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+    
+    def _chunk_text(self, text: str) -> List[str]:
+        """Split text into chunks based on chunk size and overlap."""
+        tokens = text.split()
+        chunk_starts = range(0, len(tokens), self.chunk_size - self.chunk_overlap)
+        chunks = [
+            " ".join(tokens[i:i + self.chunk_size])
+            for i in chunk_starts
+            if i + self.chunk_size <= len(tokens)
+        ]
+        return chunks
+```
+
+## Google Gemini Integration
+
+### Purpose
+
+Google Gemini powers all content generation through CrewAI agents for research analysis, summaries, FAQs, and mindmaps.
+
+### Configuration via OpenRouter
+
+<Steps>
+
+### Get OpenRouter API Key
+
+1. Sign up at [openrouter.ai](https://openrouter.ai)
+2. Navigate to API Keys section
+3. Create a new API key
+4. Add it to your `.env` file as `OPENROUTER_API_KEY`
+
+### LLM Configuration
+
+DecipherIt uses Gemini 2.0 Flash through OpenRouter:
+
+```python backend/config/llm.py
+from crewai import LLM
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+llm = LLM(
+    model="openrouter/google/gemini-2.0-flash-001",
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.environ["OPENROUTER_API_KEY"],
+    temperature=0.01
+)
+```
+
+<Note>
+**Model Selection**: Gemini 2.0 Flash provides the best balance of speed, quality, and cost for research tasks.
+
+**Temperature**: Set to 0.01 for consistent, factual outputs.
+</Note>
+
+</Steps>
+
+### Usage in AI Agents
+
+All CrewAI agents use the configured LLM:
+
+```python backend/agents/topic_research_agent.py
+from config import llm
+
+# Research Analyst Agent
+researcher = Agent(
+    role="Senior Research Analyst & Knowledge Synthesizer",
+    goal="Conduct exhaustive analysis of multi-source data",
+    backstory="""You are an elite research analyst...""",
+    verbose=True,
+    llm=llm,  # Uses Gemini 2.0 Flash
+)
+
+# Content Writer Agent
+content_writer = Agent(
+    role="Senior Content Strategist & Research Synthesizer",
+    goal="Transform extensive research findings into compelling content",
+    backstory="""You are an elite content strategist...""",
+    verbose=True,
+    llm=llm,  # Uses Gemini 2.0 Flash
+)
+```
+
+### CrewAI Agents Powered by Gemini
+
+<CodeGroup>
+
+```python Research Analysis
+# Research task using Gemini
+research_task = Task(
+    description="""Synthesize research findings into comprehensive document.
+    
+    Review ALL scraped content, identify key themes, and create
+    structured analysis with proper citations.
+    """,
+    expected_output="A markdown document with comprehensive research analysis",
+    agent=researcher,
+    max_retries=5,
+)
+```
+
+```python Content Creation
+# Content creation task using Gemini
+content_task = Task(
+    description="""Create engaging blog post based on research analysis.
+    
+    Transform research findings into compelling long-form content
+    with proper structure and citations.
+    """,
+    expected_output="Well-structured blog post in markdown format",
+    agent=content_writer,
+    context=[research_task],
+    output_pydantic=BlogPostTaskResult
+)
+```
+
+```python FAQ Generation
+# FAQ generation task using Gemini
+faq_task = Task(
+    description="""Generate 10 FAQs about the topic based on research.
+    
+    Create informative questions and detailed answers with citations.
+    """,
+    expected_output="JSON object with array of FAQ items",
+    agent=researcher,
+    context=[research_task],
+    output_pydantic=FaqTaskResult
+)
+```
+
+</CodeGroup>
+
+## LemonFox AI Integration
+
+### Purpose
+
+LemonFox AI provides high-quality text-to-speech synthesis for podcast-style audio overviews.
+
+### Configuration
+
+<Steps>
+
+### Get Your API Key
+
+1. Sign up at [lemonfox.ai](https://lemonfox.ai)
+2. Navigate to API Keys section
+3. Create a new API key
+4. Add it to your `.env` file as `LEMONFOX_API_KEY`
+
+### TTS Service Setup
+
+The TTS service is configured with connection pooling:
+
+```python backend/services/tts_service.py
+import os
+import httpx
+from loguru import logger
+
+class TTSService:
+    def __init__(self):
+        self.api_key = os.environ.get("LEMONFOX_API_KEY")
+        if not self.api_key:
+            raise ValueError("LEMONFOX_API_KEY environment variable is required")
+        
+        self.base_url = "https://api.lemonfox.ai/v1/audio/speech"
+        self.response_format = "mp3"
+        
+        # Voice mapping for different speakers
+        self.speaker_voices = {
+            "Michael": "liam",    # Host voice
+            "Sarah": "jessica"  # Guest voice
+        }
+```
+
+### Voice Configuration
+
+Two distinct voices create podcast-style conversations:
+
+```python backend/services/tts_service.py
+# Voice mapping for transcript speakers
+speaker_voices = {
+    "Michael": "liam",    # Host voice
+    "Sarah": "jessica"    # Guest voice
+}
+```
+
+</Steps>
+
+### Audio Generation Workflow
+
+<Steps>
+
+### Generate Transcript
+
+AI agent creates podcast-style script:
+
+```python backend/services/audio_overview_service.py
+# Step 1: Generate transcript using audio overview agent
+transcript = await run_audio_overview_agent(notebook_id)
+
+# Transcript format:
+# [
+#   {"name": "Michael", "transcript": "Welcome to..."},
+#   {"name": "Sarah", "transcript": "Thanks for having me..."}
+# ]
+```
+
+### Convert to Speech
+
+Concurrent TTS generation with rate limiting:
+
+```python backend/services/tts_service.py
+async def generate_audio_from_transcript(
+    self,
+    transcript: List[Dict[str, Any]],
+    notebook_id: str
+) -> bytes:
+    # Process segments concurrently (max 5 at a time)
+    tasks = []
+    for segment in transcript:
+        speaker = segment.get("name", "Michael")
+        text = segment.get("transcript", "")
+        voice = self.speaker_voices.get(speaker, "jessica")
+        
+        task = self._generate_audio_with_semaphore(text, voice)
+        tasks.append(task)
+    
+    # Execute all TTS requests concurrently
+    audio_bytes_list = await asyncio.gather(*tasks)
+    
+    # Combine audio segments with pauses
+    return await self._combine_audio_segments(audio_bytes_list)
+```
+
+### Upload to Storage
+
+Audio is uploaded to Cloudflare R2:
+
+```python backend/services/audio_overview_service.py
+# Step 3: Upload audio file to R2
+audio_url = await r2_service.upload_audio_file(
+    audio_content, notebook_id
+)
+
+# Step 4: Update database with audio URL
+await notebook_repository.update_audio_overview_url(notebook_id, audio_url)
+```
+
+</Steps>
+
+### Performance Optimization
+
+The TTS service uses several optimizations:
+
+```python backend/services/tts_service.py
+class TTSService:
+    def __init__(self):
+        # Concurrency settings
+        self.max_concurrent_requests = 5
+        self.semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+        
+        # Connection pool for reusing HTTP connections
+        limits = httpx.Limits(
+            max_keepalive_connections=10,
+            max_connections=20,
+            keepalive_expiry=30.0
+        )
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(300.0),
+            limits=limits,
+            http2=True  # Enable HTTP/2 for better performance
+        )
+```
+
+<Note>
+**Connection Pooling**: Reuses HTTP connections for better performance
+
+**Rate Limiting**: Maximum 5 concurrent requests to avoid overwhelming the API
+
+**HTTP/2**: Enabled for improved request multiplexing
+</Note>
+
+## Cost Optimization
+
+### OpenAI Embeddings
+
+- Uses `text-embedding-3-small` (most cost-effective)
+- Only generates embeddings once per content chunk
+- Chunks limited to 512 tokens for efficiency
+
+### Gemini via OpenRouter
+
+- Uses Gemini 2.0 Flash (fastest, most cost-effective)
+- Temperature set to 0.01 for deterministic outputs (fewer retries)
+- Rate limiting prevents excessive API calls: `max_rpm=20`
+
+### LemonFox TTS
+
+- Only generates audio on-demand when user requests
+- Concurrent processing reduces total time
+- Audio cached in R2 storage (no regeneration needed)
+
+## Troubleshooting
+
+### OpenAI Errors
+
+If embeddings fail:
+
+```bash
+# Verify API key is valid
+curl https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+### Gemini/OpenRouter Errors
+
+If content generation fails:
+
+1. Check OpenRouter API key is valid
+2. Verify you have credits: [openrouter.ai/credits](https://openrouter.ai/credits)
+3. Check model availability: [openrouter.ai/models](https://openrouter.ai/models)
+
+### LemonFox TTS Errors
+
+If audio generation fails:
+
+1. Verify `LEMONFOX_API_KEY` is correct
+2. Check API quotas and limits
+3. Review logs: `logs/audio_overview_*.log`
+
+## Next Steps
+
+- Learn about [Bright Data Integration](/integrations/bright-data)
+- Configure [Storage](/integrations/storage)
+- Explore [AI Agents](/architecture/ai-agents)

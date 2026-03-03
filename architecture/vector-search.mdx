@@ -1,0 +1,533 @@
+---
+title: 'Vector Search System'
+description: 'Qdrant vector database integration and semantic search architecture'
+icon: 'magnifying-glass'
+---
+
+## Vector Database Architecture
+
+DecipherIt uses **Qdrant** as its vector database to enable semantic search across research content. This allows users to ask natural language questions and receive contextually relevant answers.
+
+<Info>
+  Vector embeddings transform text into numerical representations that capture semantic meaning, enabling similarity-based search.
+</Info>
+
+## Qdrant Service Implementation
+
+The core vector search service is implemented in `QdrantSourceStore`:
+
+```python backend/services/qdrant_service.py
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.http import models as rest
+from qdrant_client.http.models import Distance, VectorParams
+from openai import AsyncOpenAI
+from typing import List, Dict, Any, Optional
+import uuid
+
+class QdrantSourceStore:
+    """Service for storing and retrieving source documents using Qdrant and OpenAI embeddings."""
+    
+    def __init__(
+        self,
+        qdrant_url: str = "localhost",
+        qdrant_api_key: Optional[str] = None,
+        collection_name: str = "sources",
+        embedding_model: str = "text-embedding-3-small",
+        openai_api_key: Optional[str] = None,
+        chunk_size: int = 512,
+        chunk_overlap: int = 50,
+    ):
+        """Initialize Qdrant source store.
+        
+        Args:
+            qdrant_url: URL of Qdrant server
+            qdrant_api_key: API key for Qdrant
+            collection_name: Name of the collection to store sources
+            embedding_model: OpenAI embedding model name
+            openai_api_key: OpenAI API key
+            chunk_size: Size of chunks for text splitting
+            chunk_overlap: Overlap between chunks
+        """
+        self.collection_name = collection_name
+        self.embedding_model = embedding_model
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self._initialized = False
+        
+        # Initialize Qdrant client
+        self.qdrant_client = AsyncQdrantClient(
+            url=qdrant_url,
+            api_key=qdrant_api_key,
+            prefer_grpc=True,
+        )
+        
+        # Initialize OpenAI client
+        self.openai_client = AsyncOpenAI(api_key=openai_api_key)
+```
+
+<Note>
+  The service uses gRPC (`prefer_grpc=True`) for better performance when communicating with Qdrant.
+</Note>
+
+## Collection Initialization
+
+Collections are automatically created with proper vector configuration:
+
+```python backend/services/qdrant_service.py
+async def _create_collection_if_not_exists(self) -> None:
+    """Create collection if it doesn't exist."""
+    logger.info("Checking if collection exists")
+    collections_response = await self.qdrant_client.get_collections()
+    collections = collections_response.collections
+    
+    collection_names = [collection.name for collection in collections]
+    
+    if self.collection_name not in collection_names:
+        logger.info(f"Collection {self.collection_name} does not exist, creating...")
+        
+        # Get vector size from embedding model
+        vector_size = await self._get_embedding_size()
+        
+        # Create collection
+        await self.qdrant_client.create_collection(
+            collection_name=self.collection_name,
+            vectors_config=VectorParams(
+                size=vector_size,
+                distance=Distance.COSINE,
+            ),
+        )
+        
+        # Create payload index for notebook_id for faster filtering
+        logger.info("Creating payload index for notebook_id")
+        await self.qdrant_client.create_payload_index(
+            collection_name=self.collection_name,
+            field_name="notebook_id",
+            field_schema=rest.PayloadSchemaType.KEYWORD,
+        )
+        
+        logger.info(f"Created collection: {self.collection_name}")
+
+async def _get_embedding_size(self) -> int:
+    """Get embedding size for the model."""
+    test_text = "Test"
+    embedding = await self.openai_client.embeddings.create(
+        input=test_text,
+        model=self.embedding_model,
+    )
+    return len(embedding.data[0].embedding)
+```
+
+<Tabs>
+  <Tab title="Vector Configuration">
+    - **Distance Metric**: COSINE similarity for semantic matching
+    - **Vector Size**: Automatically detected from embedding model (1536 for text-embedding-3-small)
+    - **Indexing**: Payload index on `notebook_id` for fast filtering
+  </Tab>
+  <Tab title="Collection Features">
+    - Automatic initialization on first use
+    - Async operations for non-blocking performance
+    - Support for metadata filtering
+    - Efficient payload indexing
+  </Tab>
+</Tabs>
+
+## Text Chunking Strategy
+
+Content is chunked for optimal retrieval:
+
+```python backend/services/qdrant_service.py
+def _chunk_text(self, text: str) -> List[str]:
+    """Split text into chunks based on chunk size and overlap.
+    
+    Args:
+        text: The text to split into chunks
+    
+    Returns:
+        List of text chunks with specified size and overlap
+    """
+    if not text:
+        logger.warning("Empty text provided for chunking")
+        return []
+    
+    logger.info(f"Chunking text with size {self.chunk_size} and overlap {self.chunk_overlap}")
+    
+    # Use list comprehension for cleaner chunk creation
+    tokens = text.split()
+    chunk_starts = range(0, len(tokens), self.chunk_size - self.chunk_overlap)
+    chunks = [
+        " ".join(tokens[i:i + self.chunk_size])
+        for i in chunk_starts
+        if i + self.chunk_size <= len(tokens)
+    ]
+    
+    # Handle remaining tokens if any
+    if tokens[chunk_starts[-1]:]:
+        chunks.append(" ".join(tokens[chunk_starts[-1]:]))
+    
+    logger.info(f"Created {len(chunks)} chunks")
+    return chunks
+```
+
+<CardGroup cols={2}>
+  <Card title="Chunk Size: 512 tokens" icon="scissors">
+    Balances context preservation with granular retrieval
+  </Card>
+  <Card title="Overlap: 50 tokens" icon="arrows-left-right">
+    Ensures continuity across chunk boundaries
+  </Card>
+</CardGroup>
+
+## Embedding Generation
+
+OpenAI embeddings are generated for semantic search:
+
+```python backend/services/qdrant_service.py
+async def _get_embedding(self, text: str) -> List[float]:
+    """Get embedding for text using OpenAI."""
+    if not self._initialized:
+        await self.initialize()
+    
+    logger.info(f"Getting embedding using model {self.embedding_model}")
+    response = await self.openai_client.embeddings.create(
+        input=text,
+        model=self.embedding_model,
+    )
+    return response.data[0].embedding
+```
+
+<Info>
+  DecipherIt uses **text-embedding-3-small** for cost-effective, high-quality embeddings with 1536 dimensions.
+</Info>
+
+## Adding Sources to Vector Database
+
+```python backend/services/qdrant_service.py
+async def add_source(
+    self,
+    content: str,
+    notebook_id: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Add source document to Qdrant.
+    
+    Args:
+        content: Source content
+        notebook_id: Notebook ID for filtering
+        metadata: Additional metadata
+    
+    Returns:
+        List of IDs for the stored chunks
+    """
+    if not self._initialized:
+        await self.initialize()
+    
+    logger.info(f"Adding source document for notebook {notebook_id}")
+    
+    if metadata is None:
+        metadata = {}
+    
+    # Chunk content for better retrieval
+    chunks = self._chunk_text(content)
+    
+    # Store IDs of added chunks
+    chunk_ids = []
+    
+    # Process each chunk
+    logger.info(f"Processing {len(chunks)} chunks")
+    for i, chunk in enumerate(chunks):
+        # Generate unique ID
+        chunk_id = str(uuid.uuid4())
+        chunk_ids.append(chunk_id)
+        
+        # Create payload
+        payload = {
+            "content_chunk": chunk,
+            "chunk_index": i,
+            "total_chunks": len(chunks),
+            "notebook_id": notebook_id,
+            **metadata,
+        }
+        
+        # Get embedding
+        embedding = await self._get_embedding(chunk)
+        
+        # Store in Qdrant
+        logger.info(f"Storing chunk {i+1}/{len(chunks)} in Qdrant")
+        await self.qdrant_client.upsert(
+            collection_name=self.collection_name,
+            points=[
+                rest.PointStruct(
+                    id=chunk_id,
+                    vector=embedding,
+                    payload=payload,
+                )
+            ],
+        )
+    
+    logger.info(f"Added source with {len(chunks)} chunks for notebook {notebook_id}")
+    return chunk_ids
+```
+
+<Warning>
+  Each chunk is embedded and stored separately, allowing for granular retrieval of relevant content.
+</Warning>
+
+## Semantic Search Implementation
+
+```python backend/services/qdrant_service.py
+async def search(
+    self,
+    query: str,
+    notebook_id: Optional[str] = None,
+    limit: int = 5,
+) -> List[Dict[str, Any]]:
+    """Search for sources based on query and notebook ID.
+    
+    Args:
+        query: Search query
+        notebook_id: Optional notebook ID to filter results
+        limit: Maximum number of results
+    
+    Returns:
+        List of matching sources with scores
+    """
+    if not self._initialized:
+        await self.initialize()
+    
+    logger.info(f"Searching for: '{query}' in notebook: {notebook_id}")
+    
+    # Get query embedding
+    query_embedding = await self._get_embedding(query)
+    
+    # Set up filter if notebook_id is provided
+    filter_param = None
+    if notebook_id:
+        logger.info(f"Applying notebook filter: {notebook_id}")
+        filter_param = rest.Filter(
+            must=[
+                rest.FieldCondition(
+                    key="notebook_id",
+                    match=rest.MatchValue(value=notebook_id),
+                )
+            ]
+        )
+    
+    # Search in Qdrant
+    logger.info(f"Executing search with limit: {limit}")
+    search_result = await self.qdrant_client.search(
+        collection_name=self.collection_name,
+        query_vector=query_embedding,
+        limit=limit,
+        query_filter=filter_param,
+    )
+    
+    # Format results
+    results = []
+    for scored_point in search_result:
+        results.append({
+            "id": scored_point.id,
+            "score": scored_point.score,
+            "content_chunk": scored_point.payload.get("content_chunk"),
+            "notebook_id": scored_point.payload.get("notebook_id"),
+            "metadata": scored_point.payload.get("metadata"),
+            "url": scored_point.payload.get("url"),
+            "page_title": scored_point.payload.get("page_title"),
+        })
+    
+    logger.info(f"Found {len(results)} matching results")
+    return results
+```
+
+<Tabs>
+  <Tab title="Search Flow">
+    1. Convert query to embedding using same model
+    2. Apply notebook_id filter for isolation
+    3. Perform cosine similarity search
+    4. Return top-k results with scores
+  </Tab>
+  <Tab title="Filtering">
+    - Notebook-level isolation ensures privacy
+    - Fast filtering via payload index
+    - Supports additional metadata filters
+  </Tab>
+</Tabs>
+
+## Retrieving All Chunks
+
+For operations that need complete notebook content (like mindmap generation):
+
+```python backend/services/qdrant_service.py
+async def get_all_chunks_by_notebook_id(self, notebook_id: str) -> List[Dict[str, Any]]:
+    """Get all chunks for a specific notebook ID.
+    
+    Args:
+        notebook_id: Notebook ID to retrieve chunks for
+    
+    Returns:
+        List of all chunks for the notebook with their metadata
+    """
+    if not self._initialized:
+        await self.initialize()
+    
+    logger.info(f"Retrieving all chunks for notebook: {notebook_id}")
+    
+    # Set up filter for notebook_id
+    filter_param = rest.Filter(
+        must=[
+            rest.FieldCondition(
+                key="notebook_id",
+                match=rest.MatchValue(value=notebook_id),
+            )
+        ]
+    )
+    
+    # Use scroll to get all points for the notebook
+    scroll_result = await self.qdrant_client.scroll(
+        collection_name=self.collection_name,
+        scroll_filter=filter_param,
+        limit=10000,
+        with_payload=True,
+        with_vectors=False,
+    )
+    
+    # Format results
+    results = []
+    for point in scroll_result[0]:
+        results.append({
+            "id": point.id,
+            "content_chunk": point.payload.get("content_chunk"),
+            "chunk_index": point.payload.get("chunk_index"),
+            "total_chunks": point.payload.get("total_chunks"),
+            "notebook_id": point.payload.get("notebook_id"),
+            "metadata": point.payload.get("metadata"),
+            "url": point.payload.get("url"),
+            "page_title": point.payload.get("page_title"),
+        })
+    
+    # Sort by chunk_index to maintain order
+    results.sort(key=lambda x: x.get("chunk_index", 0))
+    
+    logger.info(f"Retrieved {len(results)} chunks for notebook {notebook_id}")
+    return results
+```
+
+<Note>
+  The scroll API efficiently retrieves large result sets without loading all vectors into memory.
+</Note>
+
+## Deleting Notebook Data
+
+```python backend/services/qdrant_service.py
+async def delete_by_notebook_id(self, notebook_id: str) -> int:
+    """Delete all sources for a specific notebook ID.
+    
+    Args:
+        notebook_id: Notebook ID to delete
+    
+    Returns:
+        Number of deleted points
+    """
+    if not self._initialized:
+        await self.initialize()
+    
+    logger.info(f"Deleting all sources for notebook: {notebook_id}")
+    
+    filter_param = rest.Filter(
+        must=[
+            rest.FieldCondition(
+                key="notebook_id",
+                match=rest.MatchValue(value=notebook_id),
+            )
+        ]
+    )
+    
+    result = await self.qdrant_client.delete(
+        collection_name=self.collection_name,
+        points_selector=rest.FilterSelector(filter=filter_param),
+    )
+    
+    logger.info(f"Deleted points for notebook {notebook_id}")
+    return result.status
+```
+
+## Service Instantiation
+
+```python backend/services/qdrant_service.py
+import os
+
+# Create an instance without initialization
+qdrant_service = QdrantSourceStore(
+    qdrant_url=os.getenv("QDRANT_API_URL"),
+    qdrant_api_key=os.getenv("QDRANT_API_KEY"),
+    collection_name="notebook_sources",
+    embedding_model="text-embedding-3-small",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+)
+```
+
+<Info>
+  The service instance is created at module level but initializes lazily on first use.
+</Info>
+
+## Integration with Chat Agent
+
+The chat agent uses vector search to find relevant context:
+
+```python backend/agents/chat_agent.py
+async def get_relevant_sources(notebook_id: str, query: str):
+    logger.info(f"Getting relevant sources from Qdrant for notebook: {notebook_id}")
+    
+    results = await qdrant_service.search(query, notebook_id)
+    
+    output = ""
+    for result in results:
+        source_info = "Source: Provided Text"
+        if result.get('url'):
+            page_title = result.get('page_title', '')
+            source_info = f"Source: {page_title} ({result['url']})"
+        output += f"Content: {result['content_chunk']}\n{source_info}\n---\n"
+    
+    return output
+```
+
+## Environment Configuration
+
+```bash .env
+# Vector Database
+QDRANT_API_URL="http://localhost:6333"
+QDRANT_API_KEY="your-qdrant-api-key"
+
+# OpenAI Embeddings
+OPENAI_API_KEY="your-openai-api-key"
+```
+
+## Performance Characteristics
+
+<CardGroup cols={2}>
+  <Card title="Async Operations" icon="bolt">
+    All database operations are async for non-blocking performance
+  </Card>
+  <Card title="gRPC Protocol" icon="network-wired">
+    Uses gRPC for faster client-server communication
+  </Card>
+  <Card title="Payload Indexing" icon="database">
+    Indexed notebook_id enables fast filtering
+  </Card>
+  <Card title="Lazy Initialization" icon="clock">
+    Collection created only when first used
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="sitemap" href="/architecture/overview">
+    Return to architecture overview
+  </Card>
+  <Card title="AI Agents" icon="robot" href="/architecture/ai-agents">
+    Learn about the CrewAI agents
+  </Card>
+  <Card title="Web Scraping" icon="globe" href="/architecture/web-scraping">
+    Explore Bright Data integration
+  </Card>
+</CardGroup>
