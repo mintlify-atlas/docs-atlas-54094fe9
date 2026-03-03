@@ -1,0 +1,104 @@
+{
+  "projectType": "saas",
+  "projectName": "DecipherIt",
+  "projectDescription": "AI-powered research assistant that transforms topics, links, and documents into comprehensive research notebooks with summaries, Q&A, audio overviews, and visual mindmaps.",
+  "theme": "palm",
+  "primaryColor": "#3b82f6",
+  "lightColor": "#60a5fa",
+  "darkColor": "#2563eb",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "features"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/deep-research",
+              "features/multi-source-research",
+              "features/ai-summaries",
+              "features/interactive-qa",
+              "features/audio-overviews",
+              "features/faq-generation",
+              "features/mindmaps"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/ai-agents",
+              "architecture/web-scraping",
+              "architecture/vector-search"
+            ]
+          },
+          {
+            "group": "Self-Hosting",
+            "pages": [
+              "self-hosting/installation",
+              "self-hosting/configuration",
+              "self-hosting/docker-deployment",
+              "self-hosting/environment-variables"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/bright-data",
+              "integrations/ai-models",
+              "integrations/storage"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["api/introduction", "api/authentication"]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/research",
+              "api/chat",
+              "api/audio",
+              "api/mindmap"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Deep AI-powered research on any topic",
+    "Multi-source research from documents, URLs, and manual text",
+    "AI-generated comprehensive summaries using CrewAI agents",
+    "Interactive Q&A chat with vector-powered semantic search",
+    "AI-generated podcast-style audio overviews with multiple voices",
+    "Automatic FAQ generation from research content",
+    "Interactive visual mindmaps with hierarchical structure",
+    "Global web access via Bright Data bypassing geo-restrictions"
+  ],
+  "publicApiSurface": [
+    "POST /api/research/topic - Start topic research",
+    "POST /api/research/sources - Start sources research",
+    "GET /api/research/{task_id}/status - Get research status",
+    "POST /api/chat - Chat with research content",
+    "POST /api/research/{task_id}/audio - Generate audio overview",
+    "POST /api/research/{task_id}/mindmap - Generate mindmap",
+    "WebScrapingPlanner - Plans web scraping strategy",
+    "LinkCollector - Discovers relevant sources using search_engine",
+    "WebScraper - Extracts content using scrape_as_markdown",
+    "ResearchAnalyst - Synthesizes information from sources",
+    "ContentWriter - Creates engaging research summaries",
+    "FAQGenerator - Generates relevant Q&A pairs",
+    "MindmapCreator - Creates hierarchical visual mindmaps",
+    "PodcastScriptGenerator - Creates audio overview scripts"
+  ]
+}
